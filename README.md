@@ -27,6 +27,8 @@ The existing LiveSplit installation must provide `LiveSplit.Cuphead.dll`, `LiveS
 - Focused Effects sections for **Borders** and **Shadow**. Disabled effects hide their controls, and advanced shadow options are collapsed by default. Input backgrounds have been removed.
 - Draggable artwork layout with per-element size, visibility and numeric offsets.
 - Live-input previews by default, with isolated inactive/pressed simulations using the same renderer.
+- Optional separate display window, reserving zero space in the splits layout.
+- Window width/height, always-on-top and title-bar settings; window position is remembered.
 - Settings save with the LiveSplit layout.
 
 ## Build
@@ -47,7 +49,7 @@ The script uses the Windows .NET Framework C# compiler and your existing LiveSpl
 
 The native integration tests and rendering checks run locally on Windows. They create their own off-screen test window and write reports/previews under `artifacts/`.
 
-Current version: **1.2.2**. The prepared build passed **138 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
+Current version: **1.3.0**. The prepared build passed **151 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
 
 ## Performance
 
@@ -65,3 +67,11 @@ The preview remains above the Borders/Shadow sections. Enable an effect to revea
 
 ![Effects settings](docs/effects-preview.png)
 
+
+## Separate display window
+
+In **Layout Settings → Cuphead Input Display → General**, enable **Show display in a separate window**. The display then occupies zero height/width in the LiveSplit layout. Configure window width, height, always-on-top and title-bar visibility in the same section. Move/resize the window normally; with its title bar hidden, drag its background to move it.
+
+Closing the separate window switches back to the inline display. Removing the component or closing LiveSplit disposes the display window. Settings and artwork still use the same single DLL.
+
+![Separate-window settings](docs/separate-window-settings.png)

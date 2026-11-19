@@ -35,6 +35,7 @@ class NativeTest {
         Assert(component.ContextMenuControls==null&&component.GetType().GetMethod("OpenEditor")==null,"Settings are hosted exclusively in LiveSplit Layout Settings");
         form.Shown+=(s,e)=>{try{
             var tabs=editor.Controls.OfType<TabControl>().Single();Assert(tabs.TabPages.Count==5,"Five native settings tabs are present");
+            TestSeparateWindow();
             Assert(((ComboBox)Find(editor,"PreviewMode_Appearance")).SelectedIndex==0&&((ComboBox)Find(editor,"PreviewMode_Effects")).SelectedIndex==0,"Appearance and effects previews default to actual live inputs");
             TestPreview();
             var sections=(TabControl)Find(editor,"EffectSections");Assert(sections.TabPages.Cast<TabPage>().Select(t=>t.Text).SequenceEqual(new[]{"Borders","Shadow"}),"Effects are separated into two focused sections");
@@ -100,6 +101,23 @@ class NativeTest {
             Marshal.Copy(BitConverter.GetBytes(float.NaN),0,IntPtr.Add(block,32),4);var fallback=new bool[10];fallback[2]=true;Assert(!reader.TryInputs(fallback)&&fallback[2],"Invalid game input falls back without corrupting fallback button states");
         }}finally{Marshal.FreeHGlobal(block);}
     }
+    static void TestSeparateWindow(){
+        var toggle=(CheckBox)Find(editor,"separateWindow");Assert(toggle!=null&&!toggle.Checked,"Separate display is an optional native General setting");
+        toggle.Checked=true;var window=Application.OpenForms.OfType<DisplayWindow>().Single();Assert(window.Visible,"Enabling the setting opens the display window");
+        using(var shot=new Bitmap(form.ClientSize.Width,form.ClientSize.Height)){form.DrawToBitmap(shot,new Rectangle(Point.Empty,shot.Size));shot.Save(Path.Combine(output,"separate-window-settings.png"));}
+        Assert(component.VerticalHeight==0&&component.HorizontalWidth==0&&component.MinimumWidth==0&&component.MinimumHeight==0,"Separate-window mode reserves no space in either LiveSplit layout orientation");
+        using(var bitmap=new Bitmap(400,200))using(var g=Graphics.FromImage(bitmap)){component.DrawVertical(g,null,400,null);component.DrawHorizontal(g,null,200,null);Assert(bitmap.GetPixel(200,100).A==0,"Detached component does not draw a duplicate in the splits");}
+        ((NumericUpDown)Find(editor,"windowWidth")).Value=620;((NumericUpDown)Find(editor,"windowHeight")).Value=230;((CheckBox)Find(editor,"windowTopMost")).Checked=true;((CheckBox)Find(editor,"windowTitleBar")).Checked=false;component.SyncDisplayWindow();
+        Assert(window.ClientSize==new Size(620,230)&&window.TopMost&&window.FormBorderStyle==FormBorderStyle.None,"Window size, always-on-top and title-bar settings are applied");
+        window.Location=new Point(210,180);Assert(Component.Number(component.Options,"windowX",0,-30000,30000)==210,"Moving the display saves its position");
+        window.ClientSize=new Size(610,220);Assert(Component.Number(component.Options,"windowWidth",0,0,2000)==610&&Component.Number(component.Options,"windowHeight",0,0,1200)==220,"Resizing the display saves its client dimensions");
+        var document=new XmlDocument();document.AppendChild(component.GetSettings(document));using(var restored=new Component(null)){restored.SetSettings(document.DocumentElement);Assert(restored.Detached&&restored.VerticalHeight==0&&Component.Number(restored.Options,"windowWidth",0,0,2000)==610,"Separate-window mode and geometry persist in the LiveSplit layout");}
+        using(var sample=new Bitmap(610,220))using(var expected=new Bitmap(610,220))using(var a=Graphics.FromImage(sample))using(var b=Graphics.FromImage(expected)){Invoke(window,"OnPaint",new PaintEventArgs(a,new Rectangle(Point.Empty,sample.Size)));component.Render(b,610,220);bool equal=true;for(int y=0;y<220&&equal;y++)for(int x=0;x<610;x++)if(sample.GetPixel(x,y).ToArgb()!=expected.GetPixel(x,y).ToArgb()){equal=false;break;}Assert(equal,"Separate window uses the same input/artwork/background renderer");}
+        window.Close();component.SyncDisplayWindow();Assert(!component.Detached&&component.VerticalHeight==170&&window.IsDisposed,"Closing the window returns to the inline display and restores its height");
+        toggle.Checked=true;window=Application.OpenForms.OfType<DisplayWindow>().Single();toggle.Checked=false;Assert(window.IsDisposed&&!component.Detached,"Disabling the setting closes the separate window");
+        using(var temporary=new Component(null)){temporary.Options["separateWindow"]=true;temporary.Options["windowX"]=30000;temporary.Options["windowY"]=30000;temporary.SyncDisplayWindow();window=Application.OpenForms.OfType<DisplayWindow>().Single();Assert(Screen.AllScreens.Any(s=>s.WorkingArea.IntersectsWith(window.Bounds)),"An off-screen saved position is recovered onto an available monitor");temporary.Dispose();Assert(window.IsDisposed,"Removing the component disposes its display window");}
+        component.Config=component.Defaults();editor.RefreshSettings();
+    }
     static void TestPreview(){
         var preview=(Preview)Find(editor,"StylePreview_Appearance");preview.Size=new Size(420,150);
         var actual=new bool[10];actual[0]=true;actual[3]=true;actual[6]=true;Array.Copy(actual,component.Pressed,10);
@@ -116,6 +134,3 @@ class NativeTest {
         preview.InputPreviewMode=0;component.Config=component.Defaults();editor.RefreshSettings();
     }
 }
-
-
-

@@ -69,9 +69,13 @@ namespace CupheadInputDisplay {
         void BuildGeneral(){var page=Page("General");
             Heading(page,"Game detection");Note(page,"Character, plane mode and in-game inputs are detected automatically. No separate character or plane configuration is needed.");
             Choice(page,"Follow player","player",new[]{"Player 1","Player 2"},true);
+            Heading(page,"Display location");var detached=Check(page,"Show display in a separate window","liveSplit","separateWindow",false);Note(page,"Separate-window mode uses no space in the splits layout. Closing that window returns the display to the layout.");
+            var windowOptions=new TableLayoutPanel{ColumnCount=2,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,Name="WindowOptions"};windowOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,58));windowOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,42));Wide(page,windowOptions);
+            Number(windowOptions,"Window width","liveSplit","windowWidth",400,120,2000,0,1);Number(windowOptions,"Window height","liveSplit","windowHeight",170,80,1200,0,1);Check(windowOptions,"Always on top","liveSplit","windowTopMost",false);Check(windowOptions,"Show title bar","liveSplit","windowTitleBar",true);
+            detached.CheckedChanged+=(s,e)=>{windowOptions.Visible=detached.Checked;if(!refreshing)owner.SyncDisplayWindow();};refreshers.Add(()=>windowOptions.Visible=detached.Checked);
             Heading(page,"Background");
             ColorField(page,"Background color","backgroundColor",Color.Black,()=>owner.Options);
-            
+
             var green=new Button{Text="Use green screen",AutoSize=true,Name="GreenScreenPreset"};Wide(page,green);green.Click+=(s,e)=>{owner.Options["backgroundMode"]="Solid";owner.Options["backgroundColor"]="#FF00FF00";owner.Options["backgroundOpacity"]=100;RefreshSettings();};
             Heading(page,"Background image");var imageName=new Label{AutoSize=false,Height=22,AutoEllipsis=true,Name="BackgroundImageName"};Wide(page,imageName);refreshers.Add(()=>imageName.Text=Component.Text(owner.Options,"backgroundImage","").Length==0?"No background image":Component.Text(owner.Options,"backgroundImageName","Embedded image"));
             var browse=new Button{Text="Choose image…",AutoSize=true,Name="ChooseBackgroundImage"};var remove=new Button{Text="Remove image",AutoSize=true,Name="RemoveBackgroundImage"};var buttons=new FlowLayoutPanel{AutoSize=true,FlowDirection=FlowDirection.LeftToRight};buttons.Controls.Add(browse);buttons.Controls.Add(remove);Wide(page,buttons);
@@ -160,10 +164,3 @@ namespace CupheadInputDisplay {
         protected override void OnMouseUp(MouseEventArgs e){base.OnMouseUp(e);dragging=false;Capture=false;Invalidate();}
     }
 }
-
-
-
-
-
-
-

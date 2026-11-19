@@ -14,7 +14,7 @@ using LiveSplit.UI;
 using LiveSplit.UI.Components;
 
 [assembly: AssemblyTitle("Cuphead Input Display")]
-[assembly: AssemblyVersion("1.2.2.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
 [assembly: ComponentFactory(typeof(CupheadInputDisplay.Factory))]
 namespace CupheadInputDisplay {
     public sealed class Factory : IComponentFactory {
@@ -25,7 +25,7 @@ namespace CupheadInputDisplay {
         public string UpdateName {get{return ComponentName;}}
         public string UpdateURL {get{return "";}}
         public string XMLURL {get{return "";}}
-        public Version Version {get{return new Version(1,2,2,0);}}
+        public Version Version {get{return new Version(1,3,0,0);}}
     }
     public sealed class Component : IComponent {
         public readonly JavaScriptSerializer Json=new JavaScriptSerializer {MaxJsonLength=32*1024*1024};
@@ -44,6 +44,8 @@ namespace CupheadInputDisplay {
         readonly bool[] lastPressed=new bool[10];bool dirty=true,lastPlane;string lastCharacter,lastConfig,lastImageSignature;long lastConfigCheck;float lastWidth,lastHeight;LayoutMode lastMode;
         public event Action Changed;
         long lastGamePoll; bool disposed; Editor settings;
+        DisplayWindow displayWindow;string windowSignature;bool windowDirty=true;
+        public bool Detached {get{return Flag(Options,"separateWindow",false);}}
         public static readonly string[] Actions={"jump","shoot","dash","ex","lock","swap","up","down","left","right"};
         public static readonly string[] Elements={"lock","swap","jump","shoot","dash","ex","dpad"};
         public static readonly PointF[] Positions={new PointF(0,0),new PointF(0,74),new PointF(78,0),new PointF(158,0),new PointF(78,80),new PointF(158,80),new PointF(270,21)};
@@ -58,6 +60,7 @@ namespace CupheadInputDisplay {
             var display=new Dictionary<string,object>{{"styleVersion",2},{"idleBrightness",0.4},{"pressedBrightness",1.0},{"scaleOnPress",false},{"pressScale",100},{"invertStates",false},{"tintMode","Multiply"},{"borderEnabled",false},{"borderStyle","Sprite outline"},{"borderOpacity",100},{"cornerRadius",8},{"shadowEnabled",false},{"shadowPressedOnly",false},{"shadowOpacity",65},{"shadowOffsetX",3},{"shadowOffsetY",3},{"shadowBlur",3},{"shadowSpread",0}};
             foreach(string prefix in new[]{"idle","pressed"}){display[prefix+"Color"]="#FFFFFFFF";display[prefix+"Opacity"]=100;display[prefix+"TintAmount"]=100;display[prefix+"BorderColor"]=prefix=="pressed"?"#FFFFFFFF":"#FF000000";display[prefix+"BorderWidth"]=prefix=="pressed"?2:1;display[prefix+"ShadowColor"]="#FF000000";}
             var options=new Dictionary<string,object>{{"player",0},{"controller",0},{"deadzone",0.3},{"height",170},{"width",400},{"smooth",true},{"inputSource","Auto"},{"backgroundMode","Solid"},{"backgroundColor","#FF000000"},{"backgroundOpacity",100},{"backgroundImage",""},{"backgroundImageName",""},{"backgroundImageMode","Fill"}};
+            options["separateWindow"]=false;options["windowWidth"]=400;options["windowHeight"]=170;options["windowX"]=100;options["windowY"]=100;options["windowTopMost"]=false;options["windowTitleBar"]=true;
             var elements=new Dictionary<string,object>();foreach(string name in Elements)elements[name]=new Dictionary<string,object>{{"scale",1.0},{"offsetX",0},{"offsetY",0},{"visible",true},{"customColors",false},{"idleColor","#FFFFFFFF"},{"pressedColor","#FFFFFFFF"}};
             return new Dictionary<string,object>{{"keybinds",keys},{"gamepadBinds",pads},{"displaySettings",display},{"liveSplit",options},{"elementSettings",elements}};
         }
@@ -88,7 +91,12 @@ namespace CupheadInputDisplay {
             for(int i=0;i<Actions.Length;i++){bool p=hardwareNeeded&&Key(Text(keys,Actions[i],""));if(i<6)p|=PadButtons[(int)Number(pads,Actions[i],0,0,127)];else if(connected){if(i==6)p|=PadButton(pad,12)||pad.ly/32768.0>deadzone;else if(i==7)p|=PadButton(pad,13)||pad.ly/32768.0< -deadzone;else if(i==8)p|=PadButton(pad,14)||pad.lx/32768.0< -deadzone;else p|=PadButton(pad,15)||pad.lx/32768.0>deadzone;}else if(direct){if(i==6)p|=genericPad.Up||genericPad.Y< -deadzone;else if(i==7)p|=genericPad.Down||genericPad.Y>deadzone;else if(i==8)p|=genericPad.Left||genericPad.X< -deadzone;else p|=genericPad.Right||genericPad.X>deadzone;}Pressed[i]=p;}
             long now=Environment.TickCount&0x7fffffff;if(now-lastGamePoll>=100||now<lastGamePoll){lastGamePoll=now;string character;bool plane;if(Reader.Poll((int)Number(Options,"player",0,0,1),out character,out plane)){Character=character;Plane=plane;}}
             Reader.TryInputs(Pressed);
-            if(Character!=lastCharacter||Plane!=lastPlane){dirty=true;lastCharacter=Character;lastPlane=Plane;}for(int i=0;i<Pressed.Length;i++)if(Pressed[i]!=lastPressed[i]){dirty=true;lastPressed[i]=Pressed[i];}
+            if(Character!=lastCharacter||Plane!=lastPlane){dirty=true;windowDirty=true;lastCharacter=Character;lastPlane=Plane;}for(int i=0;i<Pressed.Length;i++)if(Pressed[i]!=lastPressed[i]){dirty=true;windowDirty=true;lastPressed[i]=Pressed[i];}
+            ObserveRenderConfig();SyncDisplayWindow();if(displayWindow!=null&&windowDirty){displayWindow.Invalidate();windowDirty=false;}
+        }
+        public void SyncDisplayWindow(){if(disposed)return;if(!Detached){if(displayWindow!=null){var previous=displayWindow;displayWindow=null;previous.ClosedByUser=null;previous.Dispose();}windowSignature=null;return;}
+            if(displayWindow==null||displayWindow.IsDisposed){displayWindow=new DisplayWindow(this);windowDirty=true;displayWindow.ClosedByUser=()=>{Options["separateWindow"]=false;dirty=true;windowSignature=null;if(Changed!=null)Changed();};windowSignature=null;}
+            string signature=Number(Options,"windowWidth",400,120,2000)+"|"+Number(Options,"windowHeight",170,80,1200)+"|"+Number(Options,"windowX",100,-30000,30000)+"|"+Number(Options,"windowY",100,-30000,30000)+"|"+Flag(Options,"windowTopMost",false)+"|"+Flag(Options,"windowTitleBar",true);if(signature!=windowSignature){displayWindow.ApplySettings();windowSignature=signature;windowDirty=true;displayWindow.Invalidate();}if(!displayWindow.Visible)displayWindow.Show();
         }
         Bitmap Image(string relative){Bitmap bitmap;if(images.TryGetValue(relative,out bitmap))return bitmap;using(var stream=AssetStore.Open(relative)){if(stream==null)return null;using(var original=new Bitmap(stream)){bitmap=new Bitmap(original.Width,original.Height,PixelFormat.Format32bppPArgb);using(var g=Graphics.FromImage(bitmap))g.DrawImageUnscaled(original,0,0);}}images[relative]=bitmap;return bitmap;}
         public RectangleF ElementBounds(int i){var s=Map(Map(Config,"elementSettings"),Elements[i]);float scale=(float)Number(s,"scale",1,0.3,2.5);float w=i==6?110:66;return new RectangleF(Positions[i].X+(float)Number(s,"offsetX",0,-10000,10000)+(w-w*scale)/2,Positions[i].Y+(float)Number(s,"offsetY",0,-10000,10000)+(w-w*scale)/2,w*scale,w*scale);}
@@ -116,25 +124,17 @@ namespace CupheadInputDisplay {
         }finally{g.Restore(saved);}}
         public string ComponentName{get{return "Cuphead Input Display";}}
         public IDictionary<string,Action> ContextMenuControls{get;private set;}
-        public float VerticalHeight{get{return (float)Number(Options,"height",170,50,1000);}}
-        public float HorizontalWidth{get{return (float)Number(Options,"width",400,80,2000);}}
-        public float MinimumWidth{get{return 80;}}public float MinimumHeight{get{return 50;}}
+        public float VerticalHeight{get{return Detached?0:(float)Number(Options,"height",170,50,1000);}}
+        public float HorizontalWidth{get{return Detached?0:(float)Number(Options,"width",400,80,2000);}}
+        public float MinimumWidth{get{return Detached?0:80;}}public float MinimumHeight{get{return Detached?0:50;}}
         public float PaddingTop{get{return 0;}}public float PaddingBottom{get{return 0;}}public float PaddingLeft{get{return 0;}}public float PaddingRight{get{return 0;}}
-        public void DrawVertical(Graphics g,LiveSplitState s,float width,Region clip){Render(g,width,VerticalHeight);}
-        public void DrawHorizontal(Graphics g,LiveSplitState s,float height,Region clip){Render(g,HorizontalWidth,height);}
-        public void Update(IInvalidator invalidator,LiveSplitState s,float width,float height,LayoutMode mode){long now=Environment.TickCount&0x7fffffff;if(now-lastConfigCheck>=100||now<lastConfigCheck){lastConfigCheck=now;string current=RenderSignature();if(current!=lastConfig){lastConfig=current;dirty=true;}}if(width!=lastWidth||height!=lastHeight||mode!=lastMode){dirty=true;lastWidth=width;lastHeight=height;lastMode=mode;}if(dirty&&invalidator!=null){invalidator.Invalidate(0,0,width,height);dirty=false;}}
+        public void DrawVertical(Graphics g,LiveSplitState s,float width,Region clip){if(!Detached)Render(g,width,VerticalHeight);}
+        public void DrawHorizontal(Graphics g,LiveSplitState s,float height,Region clip){if(!Detached)Render(g,HorizontalWidth,height);}
+        void ObserveRenderConfig(){long now=Environment.TickCount&0x7fffffff;if(now-lastConfigCheck>=100||now<lastConfigCheck){lastConfigCheck=now;string current=RenderSignature();if(current!=lastConfig){lastConfig=current;dirty=true;windowDirty=true;}}}
+        public void Update(IInvalidator invalidator,LiveSplitState s,float width,float height,LayoutMode mode){ObserveRenderConfig();if(width!=lastWidth||height!=lastHeight||mode!=lastMode){dirty=true;lastWidth=width;lastHeight=height;lastMode=mode;}if(dirty&&invalidator!=null){invalidator.Invalidate(0,0,width,height);dirty=false;}}
         public Control GetSettingsControl(LayoutMode mode){if(settings==null||settings.IsDisposed)settings=new Editor(this);return settings;}
         public XmlNode GetSettings(XmlDocument document){var root=document.CreateElement("Settings");var c=document.CreateElement("Config");c.InnerText=Save();root.AppendChild(c);return root;}
         public void SetSettings(XmlNode node){var c=node.SelectSingleNode("Config");if(c!=null)try{Load(c.InnerText);}catch(Exception ex){System.Diagnostics.Trace.WriteLine("Cuphead input settings: "+ex.Message);}}
-        public void Dispose(){if(disposed)return;disposed=true;timer.Stop();timer.Dispose();if(settings!=null)settings.Dispose();Reader.Dispose();genericPad.Dispose();effects.Dispose();if(backgroundImage!=null)backgroundImage.Dispose();if(backgroundLayer!=null)backgroundLayer.Dispose();foreach(var image in images.Values)image.Dispose();images.Clear();}
+        public void Dispose(){if(disposed)return;disposed=true;timer.Stop();timer.Dispose();if(displayWindow!=null){displayWindow.ClosedByUser=null;displayWindow.Dispose();displayWindow=null;}if(settings!=null)settings.Dispose();Reader.Dispose();genericPad.Dispose();effects.Dispose();if(backgroundImage!=null)backgroundImage.Dispose();if(backgroundLayer!=null)backgroundLayer.Dispose();foreach(var image in images.Values)image.Dispose();images.Clear();}
     }
 }
-
-
-
-
-
-
-
-
-
