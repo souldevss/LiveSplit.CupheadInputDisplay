@@ -49,7 +49,7 @@ The script uses the Windows .NET Framework C# compiler and your existing LiveSpl
 
 The native integration tests and rendering checks run locally on Windows. They create their own off-screen test window and write reports/previews under `artifacts/`.
 
-Current version: **1.3.0**. The prepared build passed **151 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
+Current version: **1.3.1**. The prepared build passed **163 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
 
 ## Performance
 
@@ -75,3 +75,9 @@ In **Layout Settings → Cuphead Input Display → General**, enable **Show disp
 Closing the separate window switches back to the inline display. Removing the component or closing LiveSplit disposes the display window. Settings and artwork still use the same single DLL.
 
 ![Separate-window settings](docs/separate-window-settings.png)
+
+## True transparent window
+
+Under **General**, enable **Show display in a separate window**, then **Transparent window background**. This uses a premultiplied 32-bit alpha surface and Windows [UpdateLayeredWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-updatelayeredwindow), not a chroma key or whole-window opacity. Background pixels are fully transparent while artwork and shadows retain their own alpha values.
+
+Transparent mode hides the title bar and skips the solid/image background without deleting those settings. Drag a visible input sprite to move the window. Disabling transparency restores the saved title-bar/background preferences. The inline layout display remains opaque. Settings previews show a checkerboard behind transparent output.
