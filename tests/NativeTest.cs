@@ -37,6 +37,11 @@ class NativeTest {
             var tabs=editor.Controls.OfType<TabControl>().Single();Assert(tabs.TabPages.Count==5,"Five native settings tabs are present");
             TestLiveSplitColorPicker();
             TestSeparateWindow();
+            form.PerformLayout();var general=tabs.TabPages[0];Assert(!general.VerticalScroll.Visible&&!general.HorizontalScroll.Visible,"Compact inline General page fits without scrolling at 480 by 560");
+            Assert(Find(editor,"GeneralDisplayGroup") is GroupBox&&Find(editor,"GeneralBackgroundGroup") is GroupBox,"General groups controls into compact native sections");
+            var detached=(CheckBox)Find(editor,"separateWindow");detached.Checked=true;form.PerformLayout();Assert(!general.VerticalScroll.Visible,"General still fits without scrolling with window controls expanded");
+            var transparent=(CheckBox)Find(editor,"windowTransparent");transparent.Checked=true;Assert(!Find(editor,"GeneralBackgroundGroup").Visible,"Transparent-window mode hides unused background settings");transparent.Checked=false;Assert(Find(editor,"GeneralBackgroundGroup").Visible,"Opaque mode restores background controls");detached.Checked=false;
+            Assert(!Find(editor,"WindowOptions").Visible,"Inline mode hides separate-window controls");
             Assert(((ComboBox)Find(editor,"PreviewMode_Appearance")).SelectedIndex==0&&((ComboBox)Find(editor,"PreviewMode_Effects")).SelectedIndex==0,"Appearance and effects previews default to actual live inputs");
             TestPreview();
             var sections=(TabControl)Find(editor,"EffectSections");Assert(sections.TabPages.Cast<TabPage>().Select(t=>t.Text).SequenceEqual(new[]{"Borders","Shadow"}),"Effects are separated into two focused sections");
@@ -53,7 +58,7 @@ class NativeTest {
             Assert(Find(editor,"pressedBorderWidth") is NumericUpDown&&Find(editor,"pressedBorderColor") is Button&&Find(editor,"shadowBlur") is NumericUpDown,"Border color, thickness and drop-shadow settings are available");
             Assert(Find(editor,"autoCharacter")==null&&Find(editor,"autoPlane")==null,"Automatic character and plane toggles are absent");
             Assert(Find(editor,"backgroundColor") is Button&&Find(editor,"height") is NumericUpDown,"Background options use native dropdowns, color selectors and numeric controls");
-            ((Button)Find(editor,"GreenScreenPreset")).PerformClick();Assert(Component.Text(component.Options,"backgroundMode","")=="Solid"&&Component.Text(component.Options,"backgroundColor","")=="#FF00FF00","Native green-screen preset updates custom background settings");
+            Assert(Find(editor,"GreenScreenPreset")==null,"Green-screen preset has been removed");
             component.Options["backgroundColor"]="#FF000000";
             ((NumericUpDown)Find(editor,"height")).Value=237;Assert(component.VerticalHeight==237,"Native component dimension control updates renderer");
             tabs.SelectedIndex=1;

@@ -14,7 +14,7 @@ using LiveSplit.UI;
 using LiveSplit.UI.Components;
 
 [assembly: AssemblyTitle("Cuphead Input Display")]
-[assembly: AssemblyVersion("1.3.2.0")]
+[assembly: AssemblyVersion("1.3.3.0")]
 [assembly: ComponentFactory(typeof(CupheadInputDisplay.Factory))]
 namespace CupheadInputDisplay {
     public sealed class Factory : IComponentFactory {
@@ -25,7 +25,7 @@ namespace CupheadInputDisplay {
         public string UpdateName {get{return ComponentName;}}
         public string UpdateURL {get{return "";}}
         public string XMLURL {get{return "";}}
-        public Version Version {get{return new Version(1,3,2,0);}}
+        public Version Version {get{return new Version(1,3,3,0);}}
     }
     public sealed class Component : IComponent {
         public readonly JavaScriptSerializer Json=new JavaScriptSerializer {MaxJsonLength=32*1024*1024};

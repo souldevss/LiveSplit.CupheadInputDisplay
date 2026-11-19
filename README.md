@@ -18,7 +18,7 @@ The existing LiveSplit installation must provide `LiveSplit.Cuphead.dll`, `LiveS
 - Reads Cuphead's resolved in-game keyboard/controller action states automatically.
 - Keyboard, XInput and DirectInput fallback bindings when game-state reading is unavailable.
 - Native Windows Forms settings; no Config tab or separate settings window.
-- Fully opaque solid background color with a green-screen preset. No gradients or transparent background option.
+- Fully opaque solid background color with a native color picker. No gradients. General groups Display, Window and Background controls compactly and hides unused options.
 - Background images embedded in the layout, with Fill, Fit, Stretch, Center and Tile sizing. PNG, JPG, BMP and static GIF input are supported; images are normalized to a maximum dimension of 2048 pixels.
 - Compact 23×23 color swatches and **Choose…** buttons using LiveSplit's own color picker, including its screen eyedropper.
 - Dark inactive / bright pressed appearance by default, with inversion.
@@ -49,7 +49,7 @@ The script uses the Windows .NET Framework C# compiler and your existing LiveSpl
 
 The native integration tests and rendering checks run locally on Windows. They create their own off-screen test window and write reports/previews under `artifacts/`.
 
-Current version: **1.3.2**. The prepared build passed **170 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
+Current version: **1.3.3**. The prepared build passed **176 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
 
 ## Performance
 
@@ -70,7 +70,7 @@ The preview remains above the Borders/Shadow sections. Enable an effect to revea
 
 ## Separate display window
 
-In **Layout Settings → Cuphead Input Display → General**, enable **Show display in a separate window**. The display then occupies zero height/width in the LiveSplit layout. Configure window width, height, always-on-top and title-bar visibility in the same section. Move/resize the window normally; with its title bar hidden, drag its background to move it.
+In **Layout Settings → Cuphead Input Display → General**, enable **Separate display window**. The display then occupies zero height/width in the LiveSplit layout. Configure window width, height, always-on-top and title-bar visibility in the same section. Move/resize the window normally; with its title bar hidden, drag its background to move it.
 
 Closing the separate window switches back to the inline display. Removing the component or closing LiveSplit disposes the display window. Settings and artwork still use the same single DLL.
 
@@ -78,7 +78,7 @@ Closing the separate window switches back to the inline display. Removing the co
 
 ## True transparent window
 
-Under **General**, enable **Show display in a separate window**, then **Transparent window background**. This uses a premultiplied 32-bit alpha surface and Windows [UpdateLayeredWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-updatelayeredwindow), not a chroma key or whole-window opacity. Background pixels are fully transparent while artwork and shadows retain their own alpha values.
+Under **General**, enable **Separate display window**, then **Transparent background**. This uses a premultiplied 32-bit alpha surface and Windows [UpdateLayeredWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-updatelayeredwindow), not a chroma key or whole-window opacity. Background pixels are fully transparent while artwork and shadows retain their own alpha values.
 
 Transparent mode hides the title bar and skips the solid/image background without deleting those settings. Drag a visible input sprite to move the window. Disabling transparency restores the saved title-bar/background preferences. The inline layout display remains opaque. Settings previews show a checkerboard behind transparent output.
 
