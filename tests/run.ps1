@@ -18,7 +18,9 @@ try {
         $arguments = @('/nologo',('/out:' + $testName + '.exe'),'/r:LiveSplit.CupheadInputDisplay.dll','/r:LiveSplit.Core.dll','/r:UpdateManager.dll','/r:System.dll','/r:System.Core.dll','/r:System.Drawing.dll','/r:System.Windows.Forms.dll','/r:System.Web.Extensions.dll','/r:System.Xml.dll',(Join-Path $PSScriptRoot ($testName + '.cs')))
         & $compiler @arguments
         if ($LASTEXITCODE -ne 0) { throw "Compilation failed: $testName" }
-        '<configuration><runtime><loadFromRemoteSources enabled="true"/></runtime></configuration>' | Set-Content -LiteralPath ($testName + '.exe.config')
+        $hostConfig = Join-Path $LiveSplitRoot 'LiveSplit.exe.config'
+        if (Test-Path -LiteralPath $hostConfig) { Copy-Item -LiteralPath $hostConfig -Destination ($testName + '.exe.config') -Force }
+        else { '<configuration><runtime><loadFromRemoteSources enabled="true"/></runtime></configuration>' | Set-Content -LiteralPath ($testName + '.exe.config') }
         & (Join-Path $hostDirectory ($testName + '.exe')) $reports | Tee-Object -FilePath (Join-Path $reports ($testName + '.txt'))
         if ($LASTEXITCODE -ne 0) { throw "Test failed: $testName" }
     }

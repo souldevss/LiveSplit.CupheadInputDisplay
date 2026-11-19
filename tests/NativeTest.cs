@@ -35,6 +35,7 @@ class NativeTest {
         Assert(component.ContextMenuControls==null&&component.GetType().GetMethod("OpenEditor")==null,"Settings are hosted exclusively in LiveSplit Layout Settings");
         form.Shown+=(s,e)=>{try{
             var tabs=editor.Controls.OfType<TabControl>().Single();Assert(tabs.TabPages.Count==5,"Five native settings tabs are present");
+            TestLiveSplitColorPicker();
             TestSeparateWindow();
             Assert(((ComboBox)Find(editor,"PreviewMode_Appearance")).SelectedIndex==0&&((ComboBox)Find(editor,"PreviewMode_Effects")).SelectedIndex==0,"Appearance and effects previews default to actual live inputs");
             TestPreview();
@@ -100,6 +101,15 @@ class NativeTest {
             Assert(state[6]&&!state[7]&&state[8]&&!state[9],"In-game diagonal axes map Up and Left correctly");
             Marshal.Copy(BitConverter.GetBytes(float.NaN),0,IntPtr.Add(block,32),4);var fallback=new bool[10];fallback[2]=true;Assert(!reader.TryInputs(fallback)&&fallback[2],"Invalid game input falls back without corrupting fallback button states");
         }}finally{Marshal.FreeHGlobal(block);}
+    }
+    static void TestLiveSplitColorPicker(){
+        var swatch=(Button)Find(editor,"backgroundColor");Assert(swatch.Size==new Size(23,23)&&swatch.MaximumSize==new Size(23,23),"Color swatch is fixed at LiveSplit's compact 23-pixel size");
+        Assert(Find(editor,"BackgroundImageThumbnail").Size==new Size(23,23),"Background-image thumbnail uses LiveSplit's compact button size");
+        Exception failure=null;bool opened=false;using(var closer=new System.Windows.Forms.Timer{Interval=50}){closer.Tick+=(s,e)=>{var dialog=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.GetType().FullName=="Fetze.WinFormsColor.ColorPickerDialog");if(dialog==null)return;closer.Stop();try{opened=true;Assert(Find(dialog,"btnPickColor") is Button,"LiveSplit's real color dialog contains its screen eyedropper");dialog.GetType().GetProperty("SelectedColor").SetValue(dialog,Color.CornflowerBlue,null);dialog.DialogResult=DialogResult.OK;}catch(Exception ex){failure=ex;dialog.DialogResult=DialogResult.Cancel;}finally{dialog.Close();}};closer.Start();((Button)Find(editor,"backgroundColor_picker")).PerformClick();}
+        if(failure!=null)throw failure;Assert(opened,"Choose opens the actual LiveSplit color picker rather than the default Windows dialog");var selected=SpriteEffects.ReadColor(component.Options,"backgroundColor",Color.Black);Assert(Math.Abs(selected.R-100)<=1&&Math.Abs(selected.G-149)<=1&&Math.Abs(selected.B-237)<=1,"Accepting a picked color updates the saved component color");
+        Assert(swatch.BackColor.ToArgb()==selected.ToArgb()&&Find(editor,"backgroundColor_hex").Text.StartsWith("#"),"Compact swatch and hex label update to the picked color");
+        string accepted=Component.Text(component.Options,"backgroundColor","");using(var closer=new System.Windows.Forms.Timer{Interval=50}){closer.Tick+=(s,e)=>{var dialog=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.GetType().FullName=="Fetze.WinFormsColor.ColorPickerDialog");if(dialog==null)return;closer.Stop();dialog.GetType().GetProperty("SelectedColor").SetValue(dialog,Color.Red,null);dialog.DialogResult=DialogResult.Cancel;dialog.Close();};closer.Start();swatch.PerformClick();}
+        Assert(Component.Text(component.Options,"backgroundColor","")==accepted,"Cancel restores the previously accepted color");component.Config=component.Defaults();editor.RefreshSettings();
     }
     static void TestSeparateWindow(){
         var toggle=(CheckBox)Find(editor,"separateWindow");Assert(toggle!=null&&!toggle.Checked,"Separate display is an optional native General setting");

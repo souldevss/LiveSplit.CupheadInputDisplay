@@ -10,7 +10,7 @@ Native Cuphead input-display component for LiveSplit. **One DLL**, embedded artw
 4. Choose **Edit Layout → + → Other → Cuphead Input Display**.
 5. Configure it in **Layout Settings → Cuphead Input Display**.
 
-The existing LiveSplit installation must provide `LiveSplit.Cuphead.dll`, `LiveSplit.Core.dll`, `UpdateManager.dll`, `SharpDX.dll` and `SharpDX.DirectInput.dll`. WebView2 is not used. No asset directory is installed.
+The existing LiveSplit installation must provide `LiveSplit.Cuphead.dll`, `LiveSplit.Core.dll`, `UpdateManager.dll`, `SharpDX.dll`, `SharpDX.DirectInput.dll` and LiveSplit's existing `WinFormsColor.dll`. WebView2 is not used. No asset directory is installed.
 
 ## Features
 
@@ -20,7 +20,7 @@ The existing LiveSplit installation must provide `LiveSplit.Cuphead.dll`, `LiveS
 - Native Windows Forms settings; no Config tab or separate settings window.
 - Fully opaque solid background color with a green-screen preset. No gradients or transparent background option.
 - Background images embedded in the layout, with Fill, Fit, Stretch, Center and Tile sizing. PNG, JPG, BMP and static GIF input are supported; images are normalized to a maximum dimension of 2048 pixels.
-- Explicit **Choose…** buttons beside all color swatches, using the Windows color picker.
+- Compact 23×23 color swatches and **Choose…** buttons using LiveSplit's own color picker, including its screen eyedropper.
 - Dark inactive / bright pressed appearance by default, with inversion.
 - Independent inactive/pressed colors, brightness, opacity and 0–100% color strength.
 - Original, multiply, colorize and solid coloring modes; per-element color overrides.
@@ -49,7 +49,7 @@ The script uses the Windows .NET Framework C# compiler and your existing LiveSpl
 
 The native integration tests and rendering checks run locally on Windows. They create their own off-screen test window and write reports/previews under `artifacts/`.
 
-Current version: **1.3.1**. The prepared build passed **163 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
+Current version: **1.3.2**. The prepared build passed **170 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
 
 ## Performance
 
@@ -81,3 +81,9 @@ Closing the separate window switches back to the inline display. Removing the co
 Under **General**, enable **Show display in a separate window**, then **Transparent window background**. This uses a premultiplied 32-bit alpha surface and Windows [UpdateLayeredWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-updatelayeredwindow), not a chroma key or whole-window opacity. Background pixels are fully transparent while artwork and shadows retain their own alpha values.
 
 Transparent mode hides the title bar and skips the solid/image background without deleting those settings. Drag a visible input sprite to move the window. Disabling transparency restores the saved title-bar/background preferences. The inline layout display remains opaque. Settings previews show a checkerboard behind transparent output.
+
+## Pick a color from the screen
+
+Click any swatch or **Choose…** to open LiveSplit's color picker. **Hold its eyedropper button, drag onto the screen color you want, then release.** Press OK to accept; Cancel restores the previous color. Swatches are fixed at 23×23 pixels, with the hex value shown separately.
+
+Background-image selection now uses the same compact thumbnail-button interaction and file dialog as LiveSplit's built-in settings. Images remain embedded in the component's layout settings.
