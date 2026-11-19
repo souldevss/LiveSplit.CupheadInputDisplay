@@ -19,7 +19,7 @@ class NativeTest {
         var asm=typeof(Component).Assembly;
         Assert(!asm.GetReferencedAssemblies().Any(a=>a.Name.IndexOf("WebView",StringComparison.OrdinalIgnoreCase)>=0),"Component has no WebView dependency");
         Assert(!asm.GetManifestResourceNames().Any(n=>n.EndsWith(".html")||n.EndsWith(".js")||n.EndsWith(".css")),"Single DLL embeds artwork only; no browser resources");
-        Assert(new Factory().Category==LiveSplit.UI.Components.ComponentCategory.Information,"Component appears under Information");
+        Assert(new Factory().Category==LiveSplit.UI.Components.ComponentCategory.Other,"Component appears under Other");
         component=new Component(null);
         foreach(var character in new[]{"Cuphead","Mugman","Chalice"})foreach(var mode in new[]{"Normal","Plane"})foreach(var action in new[]{"Jump","Shoot","Dash","EX"})using(var stream=AssetStore.Open("assets/Display/"+mode+"/"+character+"/"+action+".png")){Assert(stream!=null,character+" "+mode+" "+action+" embedded sprite");}
         component.Load("{\"liveSplit\":{\"autoCharacter\":false,\"autoPlane\":false,\"character\":\"Mugman\",\"greenScreen\":true,\"height\":210},\"elementSettings\":{\"shoot\":{\"offsetX\":-300,\"scale\":2.5},\"lock\":{\"visible\":false}},\"keybinds\":{\"jump\":\"Space\"}}");
@@ -37,6 +37,15 @@ class NativeTest {
             var tabs=editor.Controls.OfType<TabControl>().Single();Assert(tabs.TabPages.Count==5,"Five native settings tabs are present");
             Assert(((ComboBox)Find(editor,"PreviewMode_Appearance")).SelectedIndex==0&&((ComboBox)Find(editor,"PreviewMode_Effects")).SelectedIndex==0,"Appearance and effects previews default to actual live inputs");
             TestPreview();
+            var sections=(TabControl)Find(editor,"EffectSections");Assert(sections.TabPages.Cast<TabPage>().Select(t=>t.Text).SequenceEqual(new[]{"Borders","Shadow"}),"Effects are separated into two focused sections");
+            Assert(Find(editor,"idleFillColor")==null&&Find(editor,"pressedFillOpacity")==null,"Input-background controls are completely removed");
+            Assert(Find(editor,"ChooseBackgroundImage") is Button&&Find(editor,"RemoveBackgroundImage") is Button&&Find(editor,"backgroundImageMode") is ComboBox,"Component background image controls are available");
+            foreach(string color in new[]{"backgroundColor","idleColor","pressedColor","idleBorderColor","pressedBorderColor","idleShadowColor","pressedShadowColor","ElementIdleColor","ElementPressedColor"})Assert(Find(editor,color+"_picker") is Button,"Explicit Windows color picker for "+color);
+            tabs.SelectedIndex=2;sections.SelectedIndex=0;Assert(!Find(editor,"BorderDetails").Visible,"Disabled border settings are collapsed");((CheckBox)Find(editor,"borderEnabled")).Checked=true;Assert(Find(editor,"BorderDetails").Visible,"Enabling borders reveals their settings");
+            sections.SelectedIndex=1;Assert(!Find(editor,"ShadowDetails").Visible,"Disabled shadow settings are collapsed");((CheckBox)Find(editor,"shadowEnabled")).Checked=true;Assert(Find(editor,"ShadowDetails").Visible&&!Find(editor,"ShadowAdvanced").Visible,"Shadow starts with basic controls only");((Button)Find(editor,"ToggleShadowAdvanced")).PerformClick();Assert(Find(editor,"ShadowAdvanced").Visible,"More shadow options expands advanced controls");((NumericUpDown)Find(editor,"shadowBlur")).Value=7;((Button)Find(editor,"ToggleShadowAdvanced")).PerformClick();Assert(!Find(editor,"ShadowAdvanced").Visible&&Component.Number(Component.Map(component.Config,"displaySettings"),"shadowBlur",0,0,12)==7,"Collapsing advanced options preserves effect settings");
+            ((CheckBox)Find(editor,"borderEnabled")).Checked=false;((CheckBox)Find(editor,"shadowEnabled")).Checked=false;sections.SelectedIndex=0;
+            using(var shot=new Bitmap(form.ClientSize.Width,form.ClientSize.Height)){form.DrawToBitmap(shot,new Rectangle(Point.Empty,shot.Size));shot.Save(Path.Combine(output,"effects-preview.png"));}
+            tabs.SelectedIndex=0;
             Assert(Find(editor,"backgroundMode")==null&&Find(editor,"backgroundOpacity")==null,"Transparent background and background-opacity options are removed");
             Assert(Find(editor,"idleTintAmount") is NumericUpDown&&Find(editor,"pressedTintAmount") is NumericUpDown,"Inactive and pressed color strengths have independent native controls");
             Assert(Find(editor,"pressedBorderWidth") is NumericUpDown&&Find(editor,"pressedBorderColor") is Button&&Find(editor,"shadowBlur") is NumericUpDown,"Border color, thickness and drop-shadow settings are available");
@@ -107,5 +116,6 @@ class NativeTest {
         preview.InputPreviewMode=0;component.Config=component.Defaults();editor.RefreshSettings();
     }
 }
+
 
 

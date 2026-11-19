@@ -14,21 +14,21 @@ using LiveSplit.UI;
 using LiveSplit.UI.Components;
 
 [assembly: AssemblyTitle("Cuphead Input Display")]
-[assembly: AssemblyVersion("1.2.1.0")]
+[assembly: AssemblyVersion("1.2.2.0")]
 [assembly: ComponentFactory(typeof(CupheadInputDisplay.Factory))]
 namespace CupheadInputDisplay {
     public sealed class Factory : IComponentFactory {
         public string ComponentName {get{return "Cuphead Input Display";}}
         public string Description {get{return "Cuphead input artwork, full layout editor, automatic character and plane detection.";}}
-        public ComponentCategory Category {get{return ComponentCategory.Information;}}
+        public ComponentCategory Category {get{return ComponentCategory.Other;}}
         public IComponent Create(LiveSplitState state){return new Component(state);}
         public string UpdateName {get{return ComponentName;}}
         public string UpdateURL {get{return "";}}
         public string XMLURL {get{return "";}}
-        public Version Version {get{return new Version(1,2,1,0);}}
+        public Version Version {get{return new Version(1,2,2,0);}}
     }
     public sealed class Component : IComponent {
-        public readonly JavaScriptSerializer Json=new JavaScriptSerializer();
+        public readonly JavaScriptSerializer Json=new JavaScriptSerializer {MaxJsonLength=32*1024*1024};
         public Dictionary<string,object> Config;
         public readonly GameReader Reader=new GameReader();
         public string Character="Cuphead";
@@ -41,7 +41,7 @@ namespace CupheadInputDisplay {
         readonly SpriteEffects effects=new SpriteEffects();
 
         readonly System.Windows.Forms.Timer timer;
-        readonly bool[] lastPressed=new bool[10];bool dirty=true,lastPlane;string lastCharacter,lastConfig;long lastConfigCheck;float lastWidth,lastHeight;LayoutMode lastMode;
+        readonly bool[] lastPressed=new bool[10];bool dirty=true,lastPlane;string lastCharacter,lastConfig,lastImageSignature;long lastConfigCheck;float lastWidth,lastHeight;LayoutMode lastMode;
         public event Action Changed;
         long lastGamePoll; bool disposed; Editor settings;
         public static readonly string[] Actions={"jump","shoot","dash","ex","lock","swap","up","down","left","right"};
@@ -56,8 +56,8 @@ namespace CupheadInputDisplay {
             var keys=new Dictionary<string,object>();string[] codes={"KeyZ","KeyX","KeyC","KeyV","KeyA","KeyS","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"};for(int i=0;i<Actions.Length;i++)keys[Actions[i]]=codes[i];
             var pads=new Dictionary<string,object>{{"jump",0},{"shoot",2},{"dash",1},{"ex",3},{"lock",4},{"swap",5}};
             var display=new Dictionary<string,object>{{"styleVersion",2},{"idleBrightness",0.4},{"pressedBrightness",1.0},{"scaleOnPress",false},{"pressScale",100},{"invertStates",false},{"tintMode","Multiply"},{"borderEnabled",false},{"borderStyle","Sprite outline"},{"borderOpacity",100},{"cornerRadius",8},{"shadowEnabled",false},{"shadowPressedOnly",false},{"shadowOpacity",65},{"shadowOffsetX",3},{"shadowOffsetY",3},{"shadowBlur",3},{"shadowSpread",0}};
-            foreach(string prefix in new[]{"idle","pressed"}){display[prefix+"Color"]="#FFFFFFFF";display[prefix+"Opacity"]=100;display[prefix+"TintAmount"]=100;display[prefix+"FillColor"]="#FF000000";display[prefix+"FillOpacity"]=0;display[prefix+"BorderColor"]=prefix=="pressed"?"#FFFFFFFF":"#FF000000";display[prefix+"BorderWidth"]=prefix=="pressed"?2:1;display[prefix+"ShadowColor"]="#FF000000";}
-            var options=new Dictionary<string,object>{{"player",0},{"controller",0},{"deadzone",0.3},{"height",170},{"width",400},{"smooth",true},{"inputSource","Auto"},{"backgroundMode","Solid"},{"backgroundColor","#FF000000"},{"backgroundOpacity",100}};
+            foreach(string prefix in new[]{"idle","pressed"}){display[prefix+"Color"]="#FFFFFFFF";display[prefix+"Opacity"]=100;display[prefix+"TintAmount"]=100;display[prefix+"BorderColor"]=prefix=="pressed"?"#FFFFFFFF":"#FF000000";display[prefix+"BorderWidth"]=prefix=="pressed"?2:1;display[prefix+"ShadowColor"]="#FF000000";}
+            var options=new Dictionary<string,object>{{"player",0},{"controller",0},{"deadzone",0.3},{"height",170},{"width",400},{"smooth",true},{"inputSource","Auto"},{"backgroundMode","Solid"},{"backgroundColor","#FF000000"},{"backgroundOpacity",100},{"backgroundImage",""},{"backgroundImageName",""},{"backgroundImageMode","Fill"}};
             var elements=new Dictionary<string,object>();foreach(string name in Elements)elements[name]=new Dictionary<string,object>{{"scale",1.0},{"offsetX",0},{"offsetY",0},{"visible",true},{"customColors",false},{"idleColor","#FFFFFFFF"},{"pressedColor","#FFFFFFFF"}};
             return new Dictionary<string,object>{{"keybinds",keys},{"gamepadBinds",pads},{"displaySettings",display},{"liveSplit",options},{"elementSettings",elements}};
         }
@@ -67,7 +67,7 @@ namespace CupheadInputDisplay {
         public static string Text(Dictionary<string,object> d,string key,string fallback){object v;return d.TryGetValue(key,out v)&&v is string?(string)v:fallback;}
         public Dictionary<string,object> Options {get{return Map(Config,"liveSplit");}}
         static void Merge(Dictionary<string,object> target,Dictionary<string,object> incoming){foreach(var kv in incoming){if(kv.Value is Dictionary<string,object> && target.ContainsKey(kv.Key) && target[kv.Key] is Dictionary<string,object>)Merge((Dictionary<string,object>)target[kv.Key],(Dictionary<string,object>)kv.Value);else target[kv.Key]=kv.Value;}}
-        public void Load(string json){var incoming=Json.Deserialize<Dictionary<string,object>>(json);if(incoming==null)throw new FormatException("Expected a config object");var next=Defaults();Merge(next,incoming);Config=next;Options.Remove("autoCharacter");Options.Remove("autoPlane");Options.Remove("character");var original=Map(incoming,"liveSplit");if(!original.ContainsKey("backgroundMode")&&Flag(original,"greenScreen",false)){Options["backgroundMode"]="Solid";Options["backgroundColor"]="#FF00FF00";}Options.Remove("greenScreen");Options.Remove("backgroundColor2");Options["backgroundMode"]="Solid";Options["backgroundOpacity"]=100;var saved=Map(incoming,"displaySettings");var current=Map(Config,"displaySettings");if(!saved.ContainsKey("styleVersion")&&Number(saved,"idleBrightness",0.4,0,1)==1&&Number(saved,"pressedBrightness",1,0,1)==0.4){current["idleBrightness"]=0.4;current["pressedBrightness"]=1.0;}current["styleVersion"]=2;if(Changed!=null)Changed();}
+        public void Load(string json){var incoming=Json.Deserialize<Dictionary<string,object>>(json);if(incoming==null)throw new FormatException("Expected a config object");var next=Defaults();Merge(next,incoming);Config=next;Options.Remove("autoCharacter");Options.Remove("autoPlane");Options.Remove("character");var original=Map(incoming,"liveSplit");if(!original.ContainsKey("backgroundMode")&&Flag(original,"greenScreen",false)){Options["backgroundMode"]="Solid";Options["backgroundColor"]="#FF00FF00";}Options.Remove("greenScreen");Options.Remove("backgroundColor2");Options["backgroundMode"]="Solid";Options["backgroundOpacity"]=100;var saved=Map(incoming,"displaySettings");var current=Map(Config,"displaySettings");if(!saved.ContainsKey("styleVersion")&&Number(saved,"idleBrightness",0.4,0,1)==1&&Number(saved,"pressedBrightness",1,0,1)==0.4){current["idleBrightness"]=0.4;current["pressedBrightness"]=1.0;}foreach(string key in new[]{"idleFillColor","idleFillOpacity","pressedFillColor","pressedFillOpacity"})current.Remove(key);current["styleVersion"]=2;if(Changed!=null)Changed();}
         public string Save(){return Json.Serialize(Config);}
         [DllImport("user32.dll")] static extern short GetAsyncKeyState(int key);
 
@@ -94,7 +94,18 @@ namespace CupheadInputDisplay {
         public RectangleF ElementBounds(int i){var s=Map(Map(Config,"elementSettings"),Elements[i]);float scale=(float)Number(s,"scale",1,0.3,2.5);float w=i==6?110:66;return new RectangleF(Positions[i].X+(float)Number(s,"offsetX",0,-10000,10000)+(w-w*scale)/2,Positions[i].Y+(float)Number(s,"offsetY",0,-10000,10000)+(w-w*scale)/2,w*scale,w*scale);}
         public RectangleF Bounds(){RectangleF bounds=RectangleF.Empty;var d=Map(Config,"displaySettings");float extra=SpriteEffects.Padding(d);float pressScale=Flag(d,"scaleOnPress",false)?(float)Math.Max(1,Number(d,"pressScale",100,20,150)/100):1;for(int i=0;i<Elements.Length;i++)if(Flag(Map(Map(Config,"elementSettings"),Elements[i]),"visible",true)){var r=ElementBounds(i);float pad=extra*r.Width/(i==6?110:66)*pressScale;r.Inflate(r.Width*(pressScale-1)/2+pad,r.Height*(pressScale-1)/2+pad);bounds=bounds.IsEmpty?r:RectangleF.Union(bounds,r);}return bounds.IsEmpty?new RectangleF(0,0,380,146):bounds;}
         void Sprite(Graphics g,string path,RectangleF rect,bool pressed,Dictionary<string,object> element){var image=Image(path);if(image!=null)effects.Draw(g,path,image,rect,pressed,Map(Config,"displaySettings"),element,Flag(Options,"smooth",true));}
-        void Background(Graphics g,float width,float height){if(width<=0||height<=0)return;Color color=SpriteEffects.ReadColor(Options,"backgroundColor",Color.Black);using(var brush=new SolidBrush(Color.FromArgb(255,color)))g.FillRectangle(brush,0,0,width,height);}
+        Bitmap backgroundImage,backgroundLayer;string backgroundImageData,backgroundLayerKey,backgroundLayerImage;
+        string RenderSignature(){var snapshot=new Dictionary<string,object>(Config);var options=new Dictionary<string,object>(Options);string image=Text(options,"backgroundImage","");if(!object.ReferenceEquals(image,lastImageSignature)){lastImageSignature=image;dirty=true;}options.Remove("backgroundImage");snapshot["liveSplit"]=options;return Json.Serialize(snapshot);}
+        void Background(Graphics g,float width,float height){if(width<=0||height<=0)return;string image=Text(Options,"backgroundImage","");string key=width+"|"+height+"|"+Text(Options,"backgroundColor","#FF000000")+"|"+Text(Options,"backgroundImageMode","Fill")+"|"+Flag(Options,"smooth",true);if(backgroundLayer==null||backgroundLayerKey!=key||!object.ReferenceEquals(backgroundLayerImage,image)){if(backgroundLayer!=null)backgroundLayer.Dispose();backgroundLayer=new Bitmap(Math.Max(1,(int)Math.Ceiling(width)),Math.Max(1,(int)Math.Ceiling(height)),PixelFormat.Format32bppPArgb);using(var target=Graphics.FromImage(backgroundLayer))DrawBackgroundSurface(target,width,height);backgroundLayerKey=key;backgroundLayerImage=image;}var saved=g.Save();try{g.SetClip(new RectangleF(0,0,width,height),CombineMode.Intersect);g.DrawImageUnscaled(backgroundLayer,0,0);}finally{g.Restore(saved);}}
+        void DrawBackgroundSurface(Graphics g,float width,float height){
+            if(width<=0||height<=0)return;Color color=SpriteEffects.ReadColor(Options,"backgroundColor",Color.Black);using(var brush=new SolidBrush(Color.FromArgb(255,color)))g.FillRectangle(brush,0,0,width,height);
+            string data=Text(Options,"backgroundImage","");if(!object.ReferenceEquals(data,backgroundImageData)){backgroundImageData=data;if(backgroundImage!=null)backgroundImage.Dispose();backgroundImage=null;if(data.Length>0)try{backgroundImage=BackgroundImages.Decode(data);}catch(Exception ex){System.Diagnostics.Trace.WriteLine("Cuphead background image: "+ex.Message);}}
+            if(backgroundImage==null)return;var saved=g.Save();try{g.SetClip(new RectangleF(0,0,width,height),CombineMode.Intersect);string mode=Text(Options,"backgroundImageMode","Fill");
+                if(mode=="Tile"){using(var brush=new TextureBrush(backgroundImage,WrapMode.Tile))g.FillRectangle(brush,0,0,width,height);return;}
+                float drawWidth=width,drawHeight=height;if(mode=="Center"){drawWidth=backgroundImage.Width;drawHeight=backgroundImage.Height;}else if(mode!="Stretch"){float scale=mode=="Fit"?Math.Min(width/backgroundImage.Width,height/backgroundImage.Height):Math.Max(width/backgroundImage.Width,height/backgroundImage.Height);drawWidth=backgroundImage.Width*scale;drawHeight=backgroundImage.Height*scale;}
+                g.InterpolationMode=Flag(Options,"smooth",true)?InterpolationMode.HighQualityBicubic:InterpolationMode.NearestNeighbor;using(var attributes=new ImageAttributes()){attributes.SetWrapMode(WrapMode.TileFlipXY);g.DrawImage(backgroundImage,new[]{new PointF((width-drawWidth)/2,(height-drawHeight)/2),new PointF((width+drawWidth)/2,(height-drawHeight)/2),new PointF((width-drawWidth)/2,(height+drawHeight)/2)},new RectangleF(0,0,backgroundImage.Width,backgroundImage.Height),GraphicsUnit.Pixel,attributes);}
+            }finally{g.Restore(saved);}
+        }
         public void Render(Graphics g,float width,float height){Render(g,width,height,Bounds());}
         public void Render(Graphics g,float width,float height,RectangleF b){Render(g,width,height,b,Pressed);}
         public void Render(Graphics g,float width,float height,RectangleF b,bool[] inputs){var saved=g.Save();try{Background(g,width,height);effects.Configure(Json.Serialize(Map(Config,"displaySettings")));float fit=Math.Min((width-12)/b.Width,(height-12)/b.Height);if(fit<=0)return;g.TranslateTransform((width-b.Width*fit)/2-b.X*fit,(height-b.Height*fit)/2-b.Y*fit);g.ScaleTransform(fit,fit);g.InterpolationMode=Flag(Options,"smooth",true)?InterpolationMode.HighQualityBicubic:InterpolationMode.NearestNeighbor;g.PixelOffsetMode=PixelOffsetMode.HighQuality;var d=Map(Config,"displaySettings");
@@ -111,13 +122,17 @@ namespace CupheadInputDisplay {
         public float PaddingTop{get{return 0;}}public float PaddingBottom{get{return 0;}}public float PaddingLeft{get{return 0;}}public float PaddingRight{get{return 0;}}
         public void DrawVertical(Graphics g,LiveSplitState s,float width,Region clip){Render(g,width,VerticalHeight);}
         public void DrawHorizontal(Graphics g,LiveSplitState s,float height,Region clip){Render(g,HorizontalWidth,height);}
-        public void Update(IInvalidator invalidator,LiveSplitState s,float width,float height,LayoutMode mode){long now=Environment.TickCount&0x7fffffff;if(now-lastConfigCheck>=100||now<lastConfigCheck){lastConfigCheck=now;string current=Save();if(current!=lastConfig){lastConfig=current;dirty=true;}}if(width!=lastWidth||height!=lastHeight||mode!=lastMode){dirty=true;lastWidth=width;lastHeight=height;lastMode=mode;}if(dirty&&invalidator!=null){invalidator.Invalidate(0,0,width,height);dirty=false;}}
+        public void Update(IInvalidator invalidator,LiveSplitState s,float width,float height,LayoutMode mode){long now=Environment.TickCount&0x7fffffff;if(now-lastConfigCheck>=100||now<lastConfigCheck){lastConfigCheck=now;string current=RenderSignature();if(current!=lastConfig){lastConfig=current;dirty=true;}}if(width!=lastWidth||height!=lastHeight||mode!=lastMode){dirty=true;lastWidth=width;lastHeight=height;lastMode=mode;}if(dirty&&invalidator!=null){invalidator.Invalidate(0,0,width,height);dirty=false;}}
         public Control GetSettingsControl(LayoutMode mode){if(settings==null||settings.IsDisposed)settings=new Editor(this);return settings;}
         public XmlNode GetSettings(XmlDocument document){var root=document.CreateElement("Settings");var c=document.CreateElement("Config");c.InnerText=Save();root.AppendChild(c);return root;}
         public void SetSettings(XmlNode node){var c=node.SelectSingleNode("Config");if(c!=null)try{Load(c.InnerText);}catch(Exception ex){System.Diagnostics.Trace.WriteLine("Cuphead input settings: "+ex.Message);}}
-        public void Dispose(){if(disposed)return;disposed=true;timer.Stop();timer.Dispose();if(settings!=null)settings.Dispose();Reader.Dispose();genericPad.Dispose();effects.Dispose();foreach(var image in images.Values)image.Dispose();images.Clear();}
+        public void Dispose(){if(disposed)return;disposed=true;timer.Stop();timer.Dispose();if(settings!=null)settings.Dispose();Reader.Dispose();genericPad.Dispose();effects.Dispose();if(backgroundImage!=null)backgroundImage.Dispose();if(backgroundLayer!=null)backgroundLayer.Dispose();foreach(var image in images.Values)image.Dispose();images.Clear();}
     }
 }
+
+
+
+
 
 
 

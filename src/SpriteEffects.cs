@@ -44,8 +44,8 @@ namespace CupheadInputDisplay {
             var foreground=new Bitmap(edge,edge,PixelFormat.Format32bppArgb);float corner=(float)Component.Number(d,"cornerRadius",8,0,30)*Resolution;
             bool border=Component.Flag(d,"borderEnabled",false);float borderWidth=(float)Component.Number(d,p+"BorderWidth",pressed?2:1,0,12)*Resolution;string borderStyle=Component.Text(d,"borderStyle","Sprite outline");Color borderColor=ReadColor(d,p+"BorderColor",pressed?Color.White:Color.Black);float borderOpacity=(float)Component.Number(d,"borderOpacity",100,0,100)/100;
             using(var g=Graphics.FromImage(foreground)){
-                g.SmoothingMode=SmoothingMode.AntiAlias;float fill=(float)Component.Number(d,p+"FillOpacity",0,0,100)/100;Color fillColor=ReadColor(d,p+"FillColor",Color.Black);
-                if(fill>0)using(var path=Rounded(cell,corner))using(var brush=new SolidBrush(Color.FromArgb((int)(fill*fillColor.A),fillColor)))g.FillPath(brush,path);
+                g.SmoothingMode=SmoothingMode.AntiAlias;
+                
                 if(border&&borderWidth>0&&borderStyle=="Sprite outline"){
                     byte[] alpha=Alpha(sprite),expanded=Maximum(alpha,edge,edge,(int)Math.Ceiling(borderWidth));for(int i=0;i<alpha.Length;i++)expanded[i]=(byte)Math.Max(0,expanded[i]-alpha[i]);
                     using(var outline=Mask(expanded,edge,edge,borderColor,borderOpacity))g.DrawImageUnscaled(outline,0,0);
@@ -79,3 +79,4 @@ namespace CupheadInputDisplay {
         public void Dispose(){Clear();drawAttributes.Dispose();}
     }
 }
+

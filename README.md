@@ -7,7 +7,7 @@ Native Cuphead input-display component for LiveSplit. **One DLL**, embedded artw
 1. Close LiveSplit.
 2. Download [LiveSplit.CupheadInputDisplay.dll](dist/LiveSplit.CupheadInputDisplay.dll) using GitHub's download button.
 3. Place the DLL in LiveSplit's `Components` directory, then reopen LiveSplit.
-4. Choose **Edit Layout → + → Information → Cuphead Input Display**.
+4. Choose **Edit Layout → + → Other → Cuphead Input Display**.
 5. Configure it in **Layout Settings → Cuphead Input Display**.
 
 The existing LiveSplit installation must provide `LiveSplit.Cuphead.dll`, `LiveSplit.Core.dll`, `UpdateManager.dll`, `SharpDX.dll` and `SharpDX.DirectInput.dll`. WebView2 is not used. No asset directory is installed.
@@ -19,10 +19,12 @@ The existing LiveSplit installation must provide `LiveSplit.Cuphead.dll`, `LiveS
 - Keyboard, XInput and DirectInput fallback bindings when game-state reading is unavailable.
 - Native Windows Forms settings; no Config tab or separate settings window.
 - Fully opaque solid background color with a green-screen preset. No gradients or transparent background option.
+- Background images embedded in the layout, with Fill, Fit, Stretch, Center and Tile sizing. PNG, JPG, BMP and static GIF input are supported; images are normalized to a maximum dimension of 2048 pixels.
+- Explicit **Choose…** buttons beside all color swatches, using the Windows color picker.
 - Dark inactive / bright pressed appearance by default, with inversion.
 - Independent inactive/pressed colors, brightness, opacity and 0–100% color strength.
 - Original, multiply, colorize and solid coloring modes; per-element color overrides.
-- Colored input backgrounds, sprite-outline or box borders, configurable thickness and colored soft drop shadows.
+- Focused Effects sections for **Borders** and **Shadow**. Disabled effects hide their controls, and advanced shadow options are collapsed by default. Input backgrounds have been removed.
 - Draggable artwork layout with per-element size, visibility and numeric offsets.
 - Live-input previews by default, with isolated inactive/pressed simulations using the same renderer.
 - Settings save with the LiveSplit layout.
@@ -45,7 +47,7 @@ The script uses the Windows .NET Framework C# compiler and your existing LiveSpl
 
 The native integration tests and rendering checks run locally on Windows. They create their own off-screen test window and write reports/previews under `artifacts/`.
 
-Current version: **1.2.1**. The prepared build passed **105 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
+Current version: **1.2.2**. The prepared build passed **138 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
 
 ## Performance
 
@@ -56,3 +58,10 @@ A local 300-frame test measured approximately **0.34 ms per cached display rende
 ## References and credits
 
 See [THIRD_PARTY.md](THIRD_PARTY.md) for artwork and reader references. Game memory is accessed read-only; the component does not inject code, execute game methods, change bindings, advance splits or alter game time.
+
+## Effects settings
+
+The preview remains above the Borders/Shadow sections. Enable an effect to reveal its controls; use **More shadow options…** for offsets, blur and spread. Existing settings are preserved while sections are collapsed.
+
+![Effects settings](docs/effects-preview.png)
+

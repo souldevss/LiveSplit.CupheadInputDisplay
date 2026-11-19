@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -32,8 +32,8 @@ namespace CupheadInputDisplay {
             ticker.Tick+=(s,e)=>RefreshRuntime();ticker.Start();owner.Changed+=RefreshSettings;
             RefreshSettings();
         }
-        TableLayoutPanel Page(string text){
-            var page=new TabPage(text){UseVisualStyleBackColor=true,AutoScroll=true};tabs.TabPages.Add(page);
+        TableLayoutPanel Page(string text){var page=new TabPage(text){UseVisualStyleBackColor=true,AutoScroll=true};tabs.TabPages.Add(page);return PageTable(page);}
+        TableLayoutPanel PageTable(TabPage page){
             var table=new TableLayoutPanel{Dock=DockStyle.Top,AutoSize=true,ColumnCount=2,Padding=new Padding(10)};
             table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,58));table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,42));page.Controls.Add(table);return table;
         }
@@ -58,7 +58,13 @@ namespace CupheadInputDisplay {
             combo.SelectedIndexChanged+=(s,e)=>{if(!refreshing){Component.Map(owner.Config,group)[key]=numeric?(object)combo.SelectedIndex:combo.SelectedItem.ToString();}};return combo;
         }
         void ColorButtonStyle(Button button,Color color){button.BackColor=Color.FromArgb(255,color);button.ForeColor=color.GetBrightness()<0.5?Color.White:Color.Black;button.Text="#"+color.R.ToString("X2")+color.G.ToString("X2")+color.B.ToString("X2");}
-        Button ColorField(TableLayoutPanel table,string label,string key,Color fallback,Func<Dictionary<string,object>> settings,string controlName=null){var button=new Button{AutoSize=true,Name=controlName??key,UseVisualStyleBackColor=false};Row(table,label,button);refreshers.Add(()=>ColorButtonStyle(button,SpriteEffects.ReadColor(settings(),key,fallback)));button.Click+=(s,e)=>{using(var dialog=new ColorDialog{FullOpen=true,Color=SpriteEffects.ReadColor(settings(),key,fallback)})if(dialog.ShowDialog(this)==DialogResult.OK){settings()[key]="#"+unchecked((uint)dialog.Color.ToArgb()).ToString("X8");ColorButtonStyle(button,dialog.Color);}};return button;}
+        Button ColorField(TableLayoutPanel table,string label,string key,Color fallback,Func<Dictionary<string,object>> settings,string controlName=null){
+            var button=new Button{AutoSize=true,Name=controlName??key,UseVisualStyleBackColor=false,Dock=DockStyle.Fill};var picker=new Button{Text="Choose…",AutoSize=true,Name=(controlName??key)+"_picker",Dock=DockStyle.Fill};
+            var selection=new TableLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,ColumnCount=2,Dock=DockStyle.Fill,Margin=Padding.Empty};selection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,55));selection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,45));selection.Controls.Add(button,0,0);selection.Controls.Add(picker,1,0);Row(table,label,selection);
+            refreshers.Add(()=>ColorButtonStyle(button,SpriteEffects.ReadColor(settings(),key,fallback)));
+            Action choose=()=>{using(var dialog=new ColorDialog{FullOpen=true,Color=SpriteEffects.ReadColor(settings(),key,fallback)})if(dialog.ShowDialog(this)==DialogResult.OK){settings()[key]="#"+unchecked((uint)dialog.Color.ToArgb()).ToString("X8");ColorButtonStyle(button,dialog.Color);}};
+            button.Click+=(s,e)=>choose();picker.Click+=(s,e)=>choose();button.EnabledChanged+=(s,e)=>picker.Enabled=button.Enabled;tips.SetToolTip(button,"Click the swatch or Choose to open the color picker.");return button;
+        }
         void StylePreview(TableLayoutPanel table,string name){var picture=new Preview(owner){Height=130,Name="StylePreview_"+name,Editable=false};stylePreviews.Add(picture);Wide(table,picture);var mode=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Name="PreviewMode_"+name};mode.Items.AddRange(new[]{"Live input","Inactive inputs","Pressed inputs"});Row(table,"Preview state",mode);mode.SelectedIndexChanged+=(s,e)=>{picture.InputPreviewMode=mode.SelectedIndex;picture.Invalidate();};mode.SelectedIndex=0;}
         void BuildGeneral(){var page=Page("General");
             Heading(page,"Game detection");Note(page,"Character, plane mode and in-game inputs are detected automatically. No separate character or plane configuration is needed.");
@@ -67,6 +73,11 @@ namespace CupheadInputDisplay {
             ColorField(page,"Background color","backgroundColor",Color.Black,()=>owner.Options);
             
             var green=new Button{Text="Use green screen",AutoSize=true,Name="GreenScreenPreset"};Wide(page,green);green.Click+=(s,e)=>{owner.Options["backgroundMode"]="Solid";owner.Options["backgroundColor"]="#FF00FF00";owner.Options["backgroundOpacity"]=100;RefreshSettings();};
+            Heading(page,"Background image");var imageName=new Label{AutoSize=false,Height=22,AutoEllipsis=true,Name="BackgroundImageName"};Wide(page,imageName);refreshers.Add(()=>imageName.Text=Component.Text(owner.Options,"backgroundImage","").Length==0?"No background image":Component.Text(owner.Options,"backgroundImageName","Embedded image"));
+            var browse=new Button{Text="Choose image…",AutoSize=true,Name="ChooseBackgroundImage"};var remove=new Button{Text="Remove image",AutoSize=true,Name="RemoveBackgroundImage"};var buttons=new FlowLayoutPanel{AutoSize=true,FlowDirection=FlowDirection.LeftToRight};buttons.Controls.Add(browse);buttons.Controls.Add(remove);Wide(page,buttons);
+            browse.Click+=(s,e)=>{using(var dialog=new OpenFileDialog{Filter="Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif",Title="Choose background image"})if(dialog.ShowDialog(this)==DialogResult.OK)try{using(var stream=File.OpenRead(dialog.FileName))owner.Options["backgroundImage"]=BackgroundImages.Encode(stream);owner.Options["backgroundImageName"]=Path.GetFileName(dialog.FileName);RefreshSettings();}catch(Exception ex){MessageBox.Show(this,"Could not load image: "+ex.Message,"Cuphead Input Display",MessageBoxButtons.OK,MessageBoxIcon.Warning);}};
+            remove.Click+=(s,e)=>{owner.Options["backgroundImage"]="";owner.Options["backgroundImageName"]="";RefreshSettings();};refreshers.Add(()=>remove.Enabled=Component.Text(owner.Options,"backgroundImage","").Length>0);
+            Choice(page,"Image sizing","backgroundImageMode",new[]{"Fill","Fit","Stretch","Center","Tile"},false);
             Heading(page,"Component size");Number(page,"Height (vertical layout)","liveSplit","height",170,50,1000,0,1);Number(page,"Width (horizontal layout)","liveSplit","width",400,80,2000,0,1);
         }
         void BuildAppearance(){var page=Page("Appearance");
@@ -81,10 +92,15 @@ namespace CupheadInputDisplay {
             Check(page,"Smooth image scaling","liveSplit","smooth",true);
             Note(page,"Turn smoothing off for sharp pixel scaling. Each element's base size and visibility are set on the Layout tab.");
         }
-        void BuildEffects(){var page=Page("Effects");StylePreview(page,"Effects");
-            Heading(page,"Input backgrounds");ColorField(page,"Inactive background color","idleFillColor",Color.Black,()=>Component.Map(owner.Config,"displaySettings"));Number(page,"Inactive background opacity (%)","displaySettings","idleFillOpacity",0,0,100,0,1);ColorField(page,"Pressed background color","pressedFillColor",Color.Black,()=>Component.Map(owner.Config,"displaySettings"));Number(page,"Pressed background opacity (%)","displaySettings","pressedFillOpacity",0,0,100,0,1);Number(page,"Corner radius","displaySettings","cornerRadius",8,0,30,1,1);
-            Heading(page,"Input borders");Check(page,"Enable input borders","displaySettings","borderEnabled",false);Choice(page,"Border shape","borderStyle",new[]{"Sprite outline","Rounded rectangle","Rectangle","None"},false,"displaySettings");ColorField(page,"Inactive border color","idleBorderColor",Color.Black,()=>Component.Map(owner.Config,"displaySettings"));Number(page,"Inactive border thickness","displaySettings","idleBorderWidth",1,0,12,1,1);ColorField(page,"Pressed border color","pressedBorderColor",Color.White,()=>Component.Map(owner.Config,"displaySettings"));Number(page,"Pressed border thickness","displaySettings","pressedBorderWidth",2,0,12,1,1);Number(page,"Border opacity (%)","displaySettings","borderOpacity",100,0,100,0,1);
-            Heading(page,"Drop shadow");Check(page,"Enable drop shadow","displaySettings","shadowEnabled",false);Check(page,"Shadow on pressed style only","displaySettings","shadowPressedOnly",false);ColorField(page,"Inactive shadow color","idleShadowColor",Color.Black,()=>Component.Map(owner.Config,"displaySettings"));ColorField(page,"Pressed shadow color","pressedShadowColor",Color.Black,()=>Component.Map(owner.Config,"displaySettings"));Number(page,"Shadow opacity (%)","displaySettings","shadowOpacity",65,0,100,0,1);Number(page,"Horizontal shadow offset","displaySettings","shadowOffsetX",3,-30,30,1,1);Number(page,"Vertical shadow offset","displaySettings","shadowOffsetY",3,-30,30,1,1);Number(page,"Shadow blur","displaySettings","shadowBlur",3,0,12,1,1);Number(page,"Shadow spread","displaySettings","shadowSpread",0,0,8,1,1);
+        void BuildEffects(){
+            var outer=new TabPage("Effects"){UseVisualStyleBackColor=true};tabs.TabPages.Add(outer);var root=PageTable(outer);root.Dock=DockStyle.Fill;root.AutoSize=false;StylePreview(root,"Effects");
+            var sections=new TabControl{Dock=DockStyle.Fill,Name="EffectSections",Height=300};Wide(root,sections);root.RowStyles[root.RowCount-1].SizeType=SizeType.Percent;root.RowStyles[root.RowCount-1].Height=100;
+            var borders=new TabPage("Borders"){UseVisualStyleBackColor=true,AutoScroll=true};sections.TabPages.Add(borders);var page=PageTable(borders);var borderEnabled=Check(page,"Enable input borders","displaySettings","borderEnabled",false);var borderDetails=new TableLayoutPanel{ColumnCount=2,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,Name="BorderDetails"};borderDetails.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,58));borderDetails.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,42));Wide(page,borderDetails);borderEnabled.CheckedChanged+=(s,e)=>borderDetails.Visible=borderEnabled.Checked;refreshers.Add(()=>borderDetails.Visible=borderEnabled.Checked);
+            Choice(borderDetails,"Shape","borderStyle",new[]{"Sprite outline","Rounded rectangle","Rectangle","None"},false,"displaySettings");ColorField(borderDetails,"Inactive color","idleBorderColor",Color.Black,()=>Component.Map(owner.Config,"displaySettings"));Number(borderDetails,"Inactive thickness","displaySettings","idleBorderWidth",1,0,12,1,1);ColorField(borderDetails,"Pressed color","pressedBorderColor",Color.White,()=>Component.Map(owner.Config,"displaySettings"));Number(borderDetails,"Pressed thickness","displaySettings","pressedBorderWidth",2,0,12,1,1);Number(borderDetails,"Opacity (%)","displaySettings","borderOpacity",100,0,100,0,1);Number(borderDetails,"Corner radius","displaySettings","cornerRadius",8,0,30,1,1);
+            var shadows=new TabPage("Shadow"){UseVisualStyleBackColor=true,AutoScroll=true};sections.TabPages.Add(shadows);page=PageTable(shadows);var shadowEnabled=Check(page,"Enable drop shadow","displaySettings","shadowEnabled",false);var shadowDetails=new TableLayoutPanel{ColumnCount=2,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,Name="ShadowDetails"};shadowDetails.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,58));shadowDetails.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,42));Wide(page,shadowDetails);shadowEnabled.CheckedChanged+=(s,e)=>shadowDetails.Visible=shadowEnabled.Checked;refreshers.Add(()=>shadowDetails.Visible=shadowEnabled.Checked);
+            ColorField(shadowDetails,"Inactive color","idleShadowColor",Color.Black,()=>Component.Map(owner.Config,"displaySettings"));ColorField(shadowDetails,"Pressed color","pressedShadowColor",Color.Black,()=>Component.Map(owner.Config,"displaySettings"));Number(shadowDetails,"Opacity (%)","displaySettings","shadowOpacity",65,0,100,0,1);Check(shadowDetails,"Pressed style only","displaySettings","shadowPressedOnly",false);
+            var advanced=new TableLayoutPanel{ColumnCount=2,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,Name="ShadowAdvanced",Visible=false};advanced.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,58));advanced.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,42));var more=new Button{Text="More shadow options…",AutoSize=true,Name="ToggleShadowAdvanced"};Wide(shadowDetails,more);Wide(shadowDetails,advanced);more.Click+=(s,e)=>{advanced.Visible=!advanced.Visible;more.Text=advanced.Visible?"Fewer shadow options":"More shadow options…";};
+            Number(advanced,"Horizontal offset","displaySettings","shadowOffsetX",3,-30,30,1,1);Number(advanced,"Vertical offset","displaySettings","shadowOffsetY",3,-30,30,1,1);Number(advanced,"Blur","displaySettings","shadowBlur",3,0,12,1,1);Number(advanced,"Spread","displaySettings","shadowSpread",0,0,8,1,1);
         }
         void BuildLayout(){var page=Page("Layout");
             Note(page,"Drag an element in the preview, or set its offsets below. The preview shows the character and mode detected in the game.");
@@ -144,6 +160,8 @@ namespace CupheadInputDisplay {
         protected override void OnMouseUp(MouseEventArgs e){base.OnMouseUp(e);dragging=false;Capture=false;Invalidate();}
     }
 }
+
+
 
 
 
