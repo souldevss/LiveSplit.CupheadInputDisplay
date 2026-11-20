@@ -1,8 +1,8 @@
 using System;
 namespace CupheadInputDisplay {
-    // Cuphead animation frames are displayed at 12 fps. A held input never retriggers.
+    // Fast appearance, relaxed idle. A held input never retriggers.
     public sealed class StarAnimation {
-        public const int FrameMilliseconds=83,AppearFrames=8;
+        public const int FrameMilliseconds=41,IdleMilliseconds=83,AppearFrames=8;
         bool held;long started=-1;string path;
         public string Path {get{return path??Idle(0);}}
         public void Reset(){held=false;started=-1;path=null;}
@@ -10,7 +10,7 @@ namespace CupheadInputDisplay {
         public bool Advance(bool pressed,long milliseconds){
             if(pressed&&!held)started=milliseconds;held=pressed;
             long frame=started<0?AppearFrames:Math.Max(0,milliseconds-started)/FrameMilliseconds;
-            string next=frame<AppearFrames?"assets/Display/Star/Appear/winscreen_star_appear_"+(frame+1).ToString("D4")+".png":Idle(started<0?milliseconds/FrameMilliseconds:frame-AppearFrames);
+            string next=frame<AppearFrames?"assets/Display/Star/Appear/winscreen_star_appear_"+(frame+1).ToString("D4")+".png":Idle(started<0?milliseconds/IdleMilliseconds:Math.Max(0,milliseconds-started-AppearFrames*FrameMilliseconds)/IdleMilliseconds);
             bool changed=next!=path;path=next;return changed;
         }
     }

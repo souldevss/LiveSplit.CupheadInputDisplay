@@ -21,10 +21,10 @@ class NativeTest {
         Assert(animation.Path.EndsWith("main_star_a.png"),"Star starts in main idle animation");
         animation.Advance(false,83);Assert(animation.Path.EndsWith("main_star_b.png"),"Idle star advances without input");
         animation.Advance(true,1000);
-        for(int i=0;i<8;i++){animation.Advance(true,1000+i*83);Assert(animation.Path.EndsWith("appear_"+(i+1).ToString("D4")+".png"),"Appearance frame "+(i+1)+" plays in order while held");using(var stream=AssetStore.Open(animation.Path)){Assert(stream!=null,"Appearance frame "+(i+1)+" embedded in single DLL");}}
-        animation.Advance(true,1664);Assert(animation.Path.EndsWith("main_star_a.png"),"Appearance finishes into idle without repeating while held");
+        for(int i=0;i<8;i++){animation.Advance(true,1000+i*StarAnimation.FrameMilliseconds);Assert(animation.Path.EndsWith("appear_"+(i+1).ToString("D4")+".png"),"Appearance frame "+(i+1)+" plays in order while held");using(var stream=AssetStore.Open(animation.Path)){Assert(stream!=null,"Appearance frame "+(i+1)+" embedded in single DLL");}}
+        animation.Advance(true,1328);Assert(animation.Path.EndsWith("main_star_a.png"),"Appearance finishes into idle without repeating while held");
         animation.Advance(false,1700);animation.Advance(true,1701);Assert(animation.Path.EndsWith("appear_0001.png"),"Release and repress restarts appearance immediately");
-        animation.Advance(false,1784);Assert(animation.Path.EndsWith("appear_0002.png"),"Quick tap continues animation after release");
+        animation.Advance(false,1742);Assert(animation.Path.EndsWith("appear_0002.png"),"Quick tap continues animation after release");
         animation.Reset();animation.Advance(true,2000);Assert(animation.Path.EndsWith("appear_0001.png"),"Leaving and reentering win screen clears the held-input animation state");
         for(int i=0;i<3;i++)using(var stream=AssetStore.Open("assets/Display/Star/Main/winscreen_main_star_"+(char)('a'+i)+".png")){Assert(stream!=null,"Main star idle frame embedded");}
         Assert(Component.StarInput(true,false)&&Component.StarInput(false,true)&&!Component.StarInput(false,false),"Z and controller A independently activate fixed Star Skip input");
@@ -34,12 +34,23 @@ class NativeTest {
         Assert(!component.ElementVisible(7)&&component.ElementVisible(0),"Enabled star stays hidden during normal play");
         typeof(GameReader).GetProperty("OnWinScreen").SetValue(component.Reader,true,null);
         Assert(component.StarOnly&&component.ElementVisible(7)&&Enumerable.Range(0,7).All(i=>!component.ElementVisible(i)),"Win screen replaces every normal input with only the star");
-        Assert(component.Bounds()==component.ElementBounds(7),"Win-screen layout fits only the star without invisible input spacing");
+        Assert(component.Bounds().Width==380&&component.ElementBounds(7).Width==50,"Star uses a small centered canvas instead of stretching to fill the display");
+        Assert(StarAnimation.FrameMilliseconds*8==328,"Appearance now completes in 328 ms, twice as fast as the original release");
+        var originalStyle=Component.Map(component.Config,"displaySettings");
+        using(var normal=new Bitmap(400,170))using(var altered=new Bitmap(400,170))using(var a=Graphics.FromImage(normal))using(var b=Graphics.FromImage(altered)){
+            component.Render(a,400,170,component.Bounds(),new bool[11],false);
+            component.Config["displaySettings"]=new System.Collections.Generic.Dictionary<string,object>{{"tintMode","Solid"},{"idleColor","#FFFF00FF"},{"pressedColor","#FF00FF00"},{"idleBrightness",0},{"pressedBrightness",0},{"idleOpacity",0},{"pressedOpacity",0},{"invertStates",true},{"borderEnabled",true},{"shadowEnabled",true},{"scaleOnPress",true},{"pressScale",150}};
+            var pressed=new bool[11];pressed[10]=true;component.Render(b,400,170,component.Bounds(),pressed,false);
+            bool same=true;int left=400,right=0;for(int y=0;y<170;y++)for(int x=0;x<400;x++){if(normal.GetPixel(x,y)!=altered.GetPixel(x,y))same=false;if(normal.GetPixel(x,y).A>10){left=Math.Min(left,x);right=Math.Max(right,x);}}
+            Assert(same,"Star artwork ignores all coloring, dimming, opacity, border, shadow and pressed-scale effects");
+            Assert(right>left&&right-left<40,"Idle star stays under 40 pixels wide in the default 400 by 170 display");
+        }
+        component.Config["displaySettings"]=originalStyle;
         using(var shot=new Bitmap(500,190))using(var g=Graphics.FromImage(shot)){component.Render(g,500,190);shot.Save(Path.Combine(output,"star-skip-preview.png"));}
         var liveAnimation=(StarAnimation)typeof(Component).GetField("star",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(component);
         using(var strip=new Bitmap(990,90))using(var target=Graphics.FromImage(strip)){
             var inputs=new bool[11];inputs[10]=true;
-            for(int i=0;i<11;i++){liveAnimation.Advance(true,i*83);using(var frame=new Bitmap(90,90))using(var g=Graphics.FromImage(frame)){component.Render(g,90,90,component.Bounds(),inputs,false);int pixels=0;for(int y=0;y<90;y++)for(int x=0;x<90;x++)if(frame.GetPixel(x,y).A>10)pixels++;Assert(pixels>50,"Animated star frame "+i+" renders visible alpha artwork");target.DrawImageUnscaled(frame,i*90,0);}}
+            for(int i=0;i<11;i++){liveAnimation.Advance(true,i<8?i*StarAnimation.FrameMilliseconds:8*StarAnimation.FrameMilliseconds+(i-8)*StarAnimation.IdleMilliseconds);using(var frame=new Bitmap(90,90))using(var g=Graphics.FromImage(frame)){component.Render(g,90,90,component.ElementBounds(7),inputs,false);int pixels=0;for(int y=0;y<90;y++)for(int x=0;x<90;x++)if(frame.GetPixel(x,y).A>10)pixels++;Assert(pixels>50,"Animated star frame "+i+" renders visible alpha artwork");target.DrawImageUnscaled(frame,i*90,0);}}
             strip.Save(Path.Combine(output,"star-skip-animation.png"));
         }
         typeof(GameReader).GetProperty("OnWinScreen").SetValue(component.Reader,false,null);

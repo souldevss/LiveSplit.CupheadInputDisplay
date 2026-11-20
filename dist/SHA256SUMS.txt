@@ -1,1 +1,1 @@
-8b38a886a16becf2f3a397c598497b6a6639e9a7f15402c236cc5fdf05dc2967  LiveSplit.CupheadInputDisplay.dll
+23fcce2e8823566289f26604b92616b59cac093b0b2d225a1051fb0296dd04d1  LiveSplit.CupheadInputDisplay.dll

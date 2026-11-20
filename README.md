@@ -49,7 +49,7 @@ The script uses the Windows .NET Framework C# compiler and your existing LiveSpl
 
 The native integration tests and rendering checks run locally on Windows. They create their own off-screen test window and write reports/previews under `artifacts/`.
 
-Current version: **1.4.0**. The prepared build passed **225 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
+Current version: **1.4.0**. The prepared build passed **228 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
 
 ## Performance
 
@@ -92,7 +92,7 @@ Background-image selection now uses the same compact thumbnail-button interactio
 
 Enable **General → Star Skip on win screen (Z / A)**. Cuphead’s current scene is read through the installed autosplitter’s scene reader. In **scene_win**, the star replaces all normal inputs; leaving that scene restores the normal display. It is off by default.
 
-Star Skip always uses **Z** and **controller A**, independently of Cuphead or fallback jump bindings. Each new press plays all eight appearance frames, then resumes the three-frame main idle loop at approximately 12 fps. Quick taps finish the animation; holding a button does not repeatedly restart it. Layout → Star Skip provides visibility, position, scale and custom colors, with the existing effects applied to every frame. All artwork remains embedded in the single DLL.
+Star Skip always uses **Z** and **controller A**, independently of Cuphead or fallback jump bindings. Each new press plays all eight appearance frames, at approximately 24 fps (0.33 seconds), then resumes the three-frame main idle loop at approximately 12 fps. Quick taps finish the animation; holding a button does not repeatedly restart it. Layout → Star Skip provides visibility, position and scale. The star is small and centered, and always uses its original artwork: it ignores recoloring, brightness, opacity, inversion, borders, shadows and pressed scaling. All artwork remains embedded in the single DLL.
 
 ![Star appearance and idle frames](docs/star-skip-animation.png)
 
