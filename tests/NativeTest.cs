@@ -57,21 +57,26 @@ class NativeTest {
         editor=(Editor)component.GetSettingsControl(LiveSplit.UI.LayoutMode.Vertical);editor.Dock=DockStyle.Fill;form.Controls.Add(editor);
         Assert(component.ContextMenuControls==null&&component.GetType().GetMethod("OpenEditor")==null,"Settings are hosted exclusively in LiveSplit Layout Settings");
         form.Shown+=(s,e)=>{try{
-            var tabs=editor.Controls.OfType<TabControl>().Single();Assert(tabs.TabPages.Count==5,"Five native settings tabs are present");
+            var tabs=editor.Controls.OfType<TabControl>().Single();Assert(tabs.TabPages.Count==6,"Six native settings tabs include a separate Star Skip page");
             var starToggle=(CheckBox)Find(editor,"ShowStarSkip");starToggle.Checked=true;Assert(component.StarEnabled,"General toggle enables optional Star Skip");
-            var selector=(ComboBox)Find(editor,"SelectedElement");selector.SelectedIndex=7;Assert(((CheckBox)Find(editor,"ElementVisible")).Checked,"Layout exposes Star Skip visibility and placement");
-            tabs.SelectedIndex=3;
-            Assert(Find(editor,"StarStyleGroup").Visible&&Find(editor,"ElementIdleColor").Enabled&&Find(editor,"ElementPressedColor").Enabled,"Selecting Star Skip exposes enabled native color pickers and independent style controls");
+            var selector=(ComboBox)Find(editor,"SelectedElement");Assert(selector.Items.Count==7,"Normal layout contains only normal inputs");
+            tabs.SelectedIndex=5;
+            Assert(tabs.SelectedTab.Text=="Star Skip"&&Find(editor,"Star_idleColor").Enabled&&Find(editor,"Star_pressedColor").Enabled,"Dedicated Star Skip tab exposes its own enabled native color pickers");
+            Assert(Find(tabs.TabPages[3],"Star_tintMode")==null&&Find(tabs.TabPages[5],"idleColor")==null,"Star settings and normal settings use separate controls");
             ((ComboBox)Find(editor,"Star_tintMode")).SelectedItem="Solid";
             var starSettings=Component.Map(Component.Map(component.Config,"elementSettings"),"star");starSettings["idleColor"]="#FF0000FF";starSettings["pressedColor"]="#FFFF0000";editor.RefreshSettings();
-            ((NumericUpDown)Find(editor,"Star_pressedTintAmount")).Value=75;Assert(Component.Number(starSettings,"pressedTintAmount",0,0,100)==75,"Star color strength changes through native settings");((NumericUpDown)Find(editor,"Star_pressedTintAmount")).Value=100;
-            var starPreview=(Preview)Find(editor,"ArtworkPreview");var state=(ComboBox)Find(editor,"PreviewMode_Layout");
-            for(int mode=1;mode<=2;mode++){state.SelectedIndex=mode;using(var image=new Bitmap(starPreview.Width,starPreview.Height))using(var g=Graphics.FromImage(image)){Invoke(starPreview,"OnPaint",new PaintEventArgs(g,new Rectangle(Point.Empty,image.Size)));var center=image.GetPixel(image.Width/2,image.Height/2);Assert(mode==1?center.B>250&&center.R<5:center.R>250&&center.B<5,"Settings shows the correct star color outside Cuphead in preview mode "+mode);}}
+            var normalSettings=Component.Map(component.Config,"displaySettings");string normalSaved=component.Json.Serialize(normalSettings);
+            ((NumericUpDown)Find(editor,"Star_pressedTintAmount")).Value=75;Assert(Component.Number(starSettings,"pressedTintAmount",0,0,100)==75,"Star color strength changes through separate native settings");((NumericUpDown)Find(editor,"Star_pressedTintAmount")).Value=100;
+            Assert(component.Json.Serialize(normalSettings)==normalSaved,"Editing Star Skip appearance leaves normal appearance unchanged");
+            ((NumericUpDown)Find(editor,"idleTintAmount")).Value=23;Assert(Component.Number(starSettings,"idleTintAmount",0,0,100)==100,"Editing normal appearance leaves Star Skip appearance unchanged");((NumericUpDown)Find(editor,"idleTintAmount")).Value=100;
+            var starPreview=(Preview)Find(editor,"StarPreview");var state=(ComboBox)Find(editor,"PreviewMode_Star");
+            for(int mode=1;mode<=2;mode++){state.SelectedIndex=mode;using(var image=new Bitmap(starPreview.Width,starPreview.Height))using(var g=Graphics.FromImage(image)){Invoke(starPreview,"OnPaint",new PaintEventArgs(g,new Rectangle(Point.Empty,image.Size)));var center=image.GetPixel(image.Width/2,image.Height/2);Assert(mode==1?center.B>250&&center.R<5:center.R>250&&center.B<5,"Dedicated preview shows star color outside Cuphead in mode "+mode);}}
             Assert(!component.Reader.OnWinScreen&&!component.StarOnly,"Settings preview never forces the real display into win-screen mode");
             using(var shot=new Bitmap(form.ClientSize.Width,form.ClientSize.Height)){form.DrawToBitmap(shot,new Rectangle(Point.Empty,shot.Size));shot.Save(Path.Combine(output,"star-settings-preview.png"));}
+            var starSections=(TabControl)Find(editor,"StarSections");starSections.SelectedIndex=2;((CheckBox)Find(editor,"Star_borderEnabled")).Checked=true;((NumericUpDown)Find(editor,"Star_pressedBorderWidth")).Value=4;Assert(Component.Flag(starSettings,"borderEnabled",false)&&!Component.Flag(normalSettings,"borderEnabled",false),"Star borders are independent of normal borders");((CheckBox)Find(editor,"Star_shadowEnabled")).Checked=true;Assert(Component.Flag(starSettings,"shadowEnabled",false)&&!Component.Flag(normalSettings,"shadowEnabled",false),"Star shadow is independent of normal shadow");
+            ((CheckBox)Find(editor,"Star_borderEnabled")).Checked=false;((CheckBox)Find(editor,"Star_shadowEnabled")).Checked=false;starSections.SelectedIndex=1;((NumericUpDown)Find(editor,"Star_scale")).Value=120;Assert(Component.Number(starSettings,"scale",1,0.3,2.5)==1.2&&Component.Number(Component.Map(Component.Map(component.Config,"elementSettings"),"jump"),"scale",1,0.3,2.5)==1,"Star size is independent of normal input size");((NumericUpDown)Find(editor,"Star_scale")).Value=100;
+            ((CheckBox)Find(editor,"Star_visible")).Checked=false;Assert(!starToggle.Checked&&!component.StarEnabled,"Dedicated Star Skip enable control synchronizes with General");
             state.SelectedIndex=0;tabs.SelectedIndex=0;
-            ((ComboBox)Find(editor,"PreviewContent_Appearance")).SelectedIndex=1;Assert(((Preview)Find(editor,"StylePreview_Appearance")).ShowStar,"Appearance has a Star Skip preview selector");((ComboBox)Find(editor,"PreviewContent_Appearance")).SelectedIndex=0;
-            ((CheckBox)Find(editor,"ElementVisible")).Checked=false;editor.RefreshSettings();Assert(!starToggle.Checked&&!component.StarEnabled,"Layout visibility synchronizes with General toggle");selector.SelectedIndex=0;
             TestLiveSplitColorPicker();
             TestSeparateWindow();
             form.PerformLayout();var general=tabs.TabPages[0];Assert(!general.VerticalScroll.Visible&&!general.HorizontalScroll.Visible,"Compact inline General page fits without scrolling at 480 by 560");
@@ -134,6 +139,9 @@ class NativeTest {
     static void TestInputStates(){
         IntPtr block=Marshal.AllocHGlobal(256);try{Marshal.Copy(new byte[256],0,block,256);using(var reader=new GameReader()){
             var type=typeof(GameReader);type.GetField("handle",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(reader,new IntPtr(-1));
+            type.GetField("size",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(reader,8);Marshal.WriteInt64(block,200,0x1020304050607080L);Marshal.WriteByte(block,210,1);
+            Assert((long)type.GetMethod("Ptr",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(reader,new object[]{block.ToInt64()+200})==0x1020304050607080L&&(int)type.GetMethod("Int",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(reader,new object[]{block.ToInt64()+200})==0x50607080&&(bool)type.GetMethod("Bool",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(reader,new object[]{block.ToInt64()+210}),"Reused game-memory buffer preserves pointer, integer and flag reads");
+            Marshal.WriteByte(block,210,2);bool invalidFlag=false;try{type.GetMethod("Bool",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(reader,new object[]{block.ToInt64()+210});}catch(TargetInvocationException ex){invalidFlag=ex.InnerException is InvalidOperationException;}Assert(invalidFlag,"Reused memory buffer still rejects invalid flags");
             string[] fields={"buttonAddresses","axis1Addresses","axis2Addresses","deadzoneAddresses"};int[] starts={0,32,64,96};
             for(int j=0;j<4;j++){var addresses=(long[])type.GetField(fields[j],BindingFlags.Instance|BindingFlags.NonPublic).GetValue(reader);for(int i=0;i<8;i++)addresses[i]=block.ToInt64()+starts[j]+(j==0?i:i*4);}
             for(int i=0;i<8;i++)Marshal.Copy(BitConverter.GetBytes(0.5f),0,IntPtr.Add(block,96+i*4),4);

@@ -1,6 +1,6 @@
 # LiveSplit.CupheadInputDisplay
 
-Native Cuphead input-display component for LiveSplit. **One DLL**, embedded artwork, and standard Windows Forms settings. Based on [souldevss/CupheadInputDisplay](https://github.com/souldevss/CupheadInputDisplay).
+Native Cuphead input-display component for LiveSplit. **One DLL (682 KiB)**, embedded artwork, and standard Windows Forms settings. Based on [souldevss/CupheadInputDisplay](https://github.com/souldevss/CupheadInputDisplay).
 
 ## Install
 
@@ -49,13 +49,12 @@ The script uses the Windows .NET Framework C# compiler and your existing LiveSpl
 
 The native integration tests and rendering checks run locally on Windows. They create their own off-screen test window and write reports/previews under `artifacts/`.
 
-Current version: **1.4.0**. The prepared build passed **201 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
+Current version: **1.4.0**. The prepared build passed **210 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
 
 ## Performance
 
-One shared PNG is used for both input states; there are 31 embedded sprites (30 original inputs and one static star) and no separate pressed-image copies. Effect masks and display-size rasterizations are cached. The display avoids redundant invalidations and skips fallback device polling while in-game input is available, except during fallback binding configuration on the win screen while Star Skip is enabled, or while previewing Star Skip in settings.
+One shared PNG is used for both input states; there are 31 embedded sprites (30 original inputs and one static star) and no separate pressed-image copies. Effect masks and display-size rasterizations are cached. The display avoids redundant invalidations and skips fallback device polling while in-game input is available, except during fallback binding configuration, on the win screen while Star Skip is enabled, or while previewing Star Skip in settings.
 
-A local 300-frame test measured approximately **0.34 ms per cached display render** with borders and shadows enabled. Cold effect generation took about **288 ms**. These measurements are machine- and settings-dependent and do not measure the entire LiveSplit application.
 
 ## References and credits
 
@@ -94,9 +93,9 @@ Enable **General → Star Skip on win screen (Z / A)**. Cuphead’s current scen
 
 Star Skip always uses **Z** and **controller A**, independently of Cuphead or fallback jump bindings. It uses one static win-screen star sprite, with no animation.
 
-In **Layout → Element → Star Skip**, choose separate inactive and pressed colors using LiveSplit's native color picker and eyedropper. The Star Skip colors section provides Original/Multiply/Colorize/Solid modes, independent color strength and brightness for each state. The star defaults to its original gold artwork and remains small and centered. Position and size remain adjustable. Star coloring is independent of the other inputs.
+The dedicated **Star Skip** tab has its own **Appearance**, **Layout** and **Effects** sections. Appearance provides separate inactive and pressed color pickers, color mode, color strength, brightness and inversion. Layout provides size and position. Effects provides independent borders and drop shadow. Star Skip and normal inputs never share these settings.
 
-Selecting Star Skip in Layout displays it immediately, even outside Cuphead or with the optional feature disabled. Use **Preview state → Inactive inputs / Pressed inputs** to inspect both colors. Appearance and Effects also offer a **Preview → Star Skip** selector. These previews do not change the live display's automatic win-screen detection.
+Its preview remains visible above the sections, including outside Cuphead or with the optional feature disabled. Use **Preview state → Inactive inputs / Pressed inputs** to inspect both colors. Previewing does not change the live display's automatic win-screen detection. The star defaults to its original gold artwork and stays small and centered.
 
 ![Star Skip in settings](docs/star-settings-preview.png)
 

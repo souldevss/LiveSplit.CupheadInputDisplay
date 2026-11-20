@@ -7,26 +7,37 @@ using System.Runtime.InteropServices;
 namespace CupheadInputDisplay {
     public sealed class SpriteEffects : IDisposable {
         const int Resolution=4;
-        readonly Dictionary<string,StyledImage> cache=new Dictionary<string,StyledImage>();string signature;
+        struct StyleKey : IEquatable<StyleKey> {
+            public string Path;public int Tint;public bool Pressed,Smooth;
+            public bool Equals(StyleKey other){return Path==other.Path&&Tint==other.Tint&&Pressed==other.Pressed&&Smooth==other.Smooth;}
+            public override bool Equals(object other){return other is StyleKey&&Equals((StyleKey)other);}
+            public override int GetHashCode(){unchecked{return ((Path.GetHashCode()*397)^Tint)*397^(Pressed?2:0)^(Smooth?1:0);}}
+        }
+        readonly Dictionary<StyleKey,StyledImage> cache=new Dictionary<StyleKey,StyledImage>();string signature;
+        Dictionary<string,object> settingsSnapshot;
         readonly ImageAttributes drawAttributes=new ImageAttributes();
         public SpriteEffects(){drawAttributes.SetWrapMode(WrapMode.TileFlipXY);}
-        sealed class StyledImage : IDisposable {public Bitmap Image;public int Margin,Base;public readonly Dictionary<string,Bitmap> Sizes=new Dictionary<string,Bitmap>();public void Dispose(){Image.Dispose();foreach(var bitmap in Sizes.Values)bitmap.Dispose();}}
-        public void Configure(string next){if(signature==next)return;Clear();signature=next;}
+        sealed class StyledImage : IDisposable {public Bitmap Image;public int Margin,Base;public readonly Dictionary<long,Bitmap> Sizes=new Dictionary<long,Bitmap>();public void Dispose(){Image.Dispose();foreach(var bitmap in Sizes.Values)bitmap.Dispose();}}
+        public void Configure(string next){if(settingsSnapshot==null&&signature==next)return;Clear();signature=next;settingsSnapshot=null;}
+        public void Configure(Dictionary<string,object> settings){
+            if(settingsSnapshot!=null&&settingsSnapshot.Count==settings.Count){bool equal=true;foreach(var pair in settings){object previous;if(!settingsSnapshot.TryGetValue(pair.Key,out previous)||!object.Equals(previous,pair.Value)){equal=false;break;}}if(equal)return;}
+            Clear();settingsSnapshot=new Dictionary<string,object>(settings);signature=null;
+        }
         public static Color ReadColor(Dictionary<string,object> settings,string key,Color fallback){string text=Component.Text(settings,key,"").Trim();try{if(text.StartsWith("#")){uint value;if(uint.TryParse(text.Substring(1),System.Globalization.NumberStyles.HexNumber,System.Globalization.CultureInfo.InvariantCulture,out value)){if(text.Length==7)value|=0xff000000;if(text.Length==7||text.Length==9)return Color.FromArgb(unchecked((int)value));}}else if(text.Length>0){Color color=Color.FromName(text);if(color.IsKnownColor||color.IsNamedColor&&color.ToArgb()!=0)return color;}}catch(ArgumentException){}return fallback;}
         public static float Padding(Dictionary<string,object> d){float border=Component.Flag(d,"borderEnabled",false)&&Component.Text(d,"borderStyle","Sprite outline")!="None"?(float)Math.Max(Component.Number(d,"idleBorderWidth",1,0,12),Component.Number(d,"pressedBorderWidth",2,0,12)):0;float shadow=Component.Flag(d,"shadowEnabled",false)?(float)(Component.Number(d,"shadowSpread",0,0,8)+2*Component.Number(d,"shadowBlur",3,0,12)+Math.Max(Math.Abs(Component.Number(d,"shadowOffsetX",3,-30,30)),Math.Abs(Component.Number(d,"shadowOffsetY",3,-30,30)))):0;return border+shadow>0?(float)Math.Ceiling(border+shadow+2):0;}
         public void Draw(Graphics g,string path,Bitmap source,RectangleF rect,bool physicalPressed,Dictionary<string,object> d,Dictionary<string,object> element,bool smooth){
             bool pressed=physicalPressed^Component.Flag(d,"invertStates",false);string prefix=pressed?"pressed":"idle";
             Color tint=ReadColor(Component.Flag(element,"customColors",false)?element:d,prefix+"Color",Color.White);
-            string key=path+"|"+pressed+"|"+tint.ToArgb()+"|"+smooth;StyledImage styled;
+            var key=new StyleKey{Path=path,Pressed=pressed,Tint=tint.ToArgb(),Smooth=smooth};StyledImage styled;
             if(!cache.TryGetValue(key,out styled)){if(cache.Count>=128)Clear();styled=Build(source,path.IndexOf("Arrow_",StringComparison.OrdinalIgnoreCase)>=0?46:66,pressed,tint,d,smooth);cache[key]=styled;TrimCache(styled,null);}
             float unit=rect.Width/styled.Base;var destination=new RectangleF(rect.X-styled.Margin*unit,rect.Y-styled.Margin*unit,styled.Image.Width/(float)Resolution*unit,styled.Image.Height/(float)Resolution*unit);
-            using(var transform=g.Transform)if(transform.Elements[1]==0&&transform.Elements[2]==0&&g.PageScale==1&&(g.PageUnit==GraphicsUnit.Pixel||g.PageUnit==GraphicsUnit.Display)){
+            using(var transform=g.Transform){var elements=transform.Elements;if(elements[1]==0&&elements[2]==0&&g.PageScale==1&&(g.PageUnit==GraphicsUnit.Pixel||g.PageUnit==GraphicsUnit.Display)){
                 var points=new[]{new PointF(destination.Left,destination.Top),new PointF(destination.Right,destination.Bottom)};transform.TransformPoints(points);int width=(int)Math.Round(points[1].X-points[0].X),height=(int)Math.Round(points[1].Y-points[0].Y);
-                if(width>0&&height>0&&width<=4096&&height<=4096){string size=width+"x"+height;Bitmap scaled;if(!styled.Sizes.TryGetValue(size,out scaled)){
+                if(width>0&&height>0&&width<=4096&&height<=4096){long size=((long)width<<32)|(uint)height;Bitmap scaled;if(!styled.Sizes.TryGetValue(size,out scaled)){
                     if(styled.Sizes.Count>=8){foreach(var bitmap in styled.Sizes.Values)bitmap.Dispose();styled.Sizes.Clear();}
                     scaled=new Bitmap(width,height,PixelFormat.Format32bppPArgb);using(var target=Graphics.FromImage(scaled)){target.InterpolationMode=smooth?InterpolationMode.HighQualityBicubic:InterpolationMode.NearestNeighbor;target.PixelOffsetMode=PixelOffsetMode.HighQuality;target.DrawImage(styled.Image,new Rectangle(0,0,width,height),0,0,styled.Image.Width,styled.Image.Height,GraphicsUnit.Pixel,drawAttributes);}styled.Sizes[size]=scaled;TrimCache(styled,scaled);
                 }var saved=g.Save();try{g.ResetTransform();g.DrawImageUnscaled(scaled,(int)Math.Round(points[0].X),(int)Math.Round(points[0].Y));}finally{g.Restore(saved);}return;}
-            }
+            }}
             g.DrawImage(styled.Image,new[]{new PointF(destination.Left,destination.Top),new PointF(destination.Right,destination.Top),new PointF(destination.Left,destination.Bottom)},new RectangleF(0,0,styled.Image.Width,styled.Image.Height),GraphicsUnit.Pixel,drawAttributes);
         }
         StyledImage Build(Bitmap source,int baseSize,bool pressed,Color tint,Dictionary<string,object> d,bool smooth){
@@ -74,7 +85,7 @@ namespace CupheadInputDisplay {
             for(int x=0;x<width;x++){int sum=0;for(int y=0;y<=radius&&y<height;y++)sum+=temp[y*width+x];for(int y=0;y<height;y++){result[y*width+x]=(byte)(sum/divisor);int remove=y-radius,add=y+radius+1;if(remove>=0)sum-=temp[remove*width+x];if(add<height)sum+=temp[add*width+x];}}return result;
         }
         static long Bytes(StyledImage image){long bytes=(long)image.Image.Width*image.Image.Height*4;foreach(var scaled in image.Sizes.Values)bytes+=(long)scaled.Width*scaled.Height*4;return bytes;}
-        void TrimCache(StyledImage keep,Bitmap active){const long budget=64L*1024*1024;long bytes=0;foreach(var image in cache.Values)bytes+=Bytes(image);if(bytes<=budget)return;foreach(string key in new List<string>(cache.Keys)){var image=cache[key];if(image==keep)continue;bytes-=Bytes(image);image.Dispose();cache.Remove(key);if(bytes<=budget)return;}foreach(string key in new List<string>(keep.Sizes.Keys)){var image=keep.Sizes[key];if(image==active)continue;bytes-=(long)image.Width*image.Height*4;image.Dispose();keep.Sizes.Remove(key);if(bytes<=budget)return;}}
+        void TrimCache(StyledImage keep,Bitmap active){const long budget=64L*1024*1024;long bytes=0;foreach(var image in cache.Values)bytes+=Bytes(image);if(bytes<=budget)return;foreach(StyleKey key in new List<StyleKey>(cache.Keys)){var image=cache[key];if(image==keep)continue;bytes-=Bytes(image);image.Dispose();cache.Remove(key);if(bytes<=budget)return;}foreach(long key in new List<long>(keep.Sizes.Keys)){var image=keep.Sizes[key];if(image==active)continue;bytes-=(long)image.Width*image.Height*4;image.Dispose();keep.Sizes.Remove(key);if(bytes<=budget)return;}}
         void Clear(){foreach(var item in cache.Values)item.Dispose();cache.Clear();}
         public void Dispose(){Clear();drawAttributes.Dispose();}
     }

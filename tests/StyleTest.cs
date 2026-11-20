@@ -5,7 +5,6 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading;
 using CupheadInputDisplay;
 class StyleTest {
@@ -18,6 +17,9 @@ class StyleTest {
     static Color Center(Bitmap bitmap){return bitmap.GetPixel(81,81);}
     [STAThread] static void Main(string[] args){output=args[0];AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{var path=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Components",new System.Reflection.AssemblyName(e.Name).Name+".dll");return File.Exists(path)?System.Reflection.Assembly.LoadFrom(path):null;};try{using(component=new Component(null))Run();}catch(Exception e){Console.WriteLine("FAIL "+e);Environment.ExitCode=1;}}
     static void Run(){
+        var numeric=new Dictionary<string,object>{{"i",12},{"d",0.5},{"m",0.75m},{"f",0.25f},{"l",42L},{"text","0.125"},{"bad",double.NaN},{"inf",double.PositiveInfinity}};
+        Assert(Component.Number(numeric,"i",0,0,100)==12&&Component.Number(numeric,"d",0,0,1)==0.5&&Component.Number(numeric,"m",0,0,1)==0.75&&Component.Number(numeric,"f",0,0,1)==0.25&&Component.Number(numeric,"l",0,0,100)==42&&Component.Number(numeric,"text",0,0,1)==0.125,"Optimized setting reads preserve numeric and legacy string values");
+        Assert(Component.Number(numeric,"bad",7,0,100)==7&&Component.Number(numeric,"inf",7,0,100)==7&&Component.Number(numeric,"i",0,0,10)==10,"Optimized setting reads reject nonfinite values and retain range clamping");
         var d=Defaults();Assert(Component.Number(d,"idleBrightness",0,0,1)==0.4&&Component.Number(d,"pressedBrightness",0,0,1)==1,"New default is dark inactive and bright pressed");
         using(var idle=Render(d,false))using(var pressed=Render(d,true)){Assert(Center(idle).R>=95&&Center(idle).R<=110&&Center(pressed).R>250,"Default rendering visibly darkens inactive inputs and lights pressed inputs");}
         d["invertStates"]=true;using(var idle=Render(d,false))using(var pressed=Render(d,true)){Assert(Center(idle).R>250&&Center(pressed).R<110,"Invert swaps the two generated visual states");}
@@ -40,7 +42,7 @@ class StyleTest {
         component.Load("{\"displaySettings\":{\"idleBrightness\":1,\"pressedBrightness\":0.4},\"liveSplit\":{\"greenScreen\":true}}");Assert(Component.Number(Component.Map(component.Config,"displaySettings"),"idleBrightness",0,0,1)==0.4&&Component.Text(component.Options,"backgroundColor","")=="#FF00FF00","Previous default brightness and green-screen settings migrate to the new style controls");
         var schema=component.Save();component.Load(schema);Assert(component.Save()==schema,"New style settings survive JSON round-trip without resetting user choices");
         var invalidator=new Invalidator();component.Update(invalidator,null,400,170,LiveSplit.UI.LayoutMode.Vertical);component.Update(invalidator,null,400,170,LiveSplit.UI.LayoutMode.Vertical);Assert(invalidator.Calls==1,"Unchanged input display avoids repeated LiveSplit redraw requests");component.Options["backgroundOpacity"]=42;Thread.Sleep(110);component.Update(invalidator,null,400,170,LiveSplit.UI.LayoutMode.Vertical);Assert(invalidator.Calls==2,"Appearance changes still invalidate the optimized display");
-        TestBackgroundImages();Gallery();Benchmark();Console.WriteLine("SUCCESS "+count+" style assertions");
+        TestBackgroundImages();Gallery();Console.WriteLine("SUCCESS "+count+" style assertions");
     }
     static void TestBackgroundImages(){
         string encoded;using(var image=new Bitmap(10,10))using(var g=Graphics.FromImage(image))using(var stream=new MemoryStream()){g.Clear(Color.Red);image.Save(stream,ImageFormat.Png);stream.Position=0;encoded=BackgroundImages.Encode(stream);}
@@ -66,7 +68,6 @@ class StyleTest {
             int x=i%2*600,y=i/2*123;g.DrawString(labels[i],font,Brushes.Gainsboro,x+12,y+4);using(var frame=new Bitmap(590,98))using(var fg=Graphics.FromImage(frame)){component.Render(fg,590,98);g.DrawImageUnscaled(frame,x+5,y+24);}
         }atlas.Save(Path.Combine(output,"styling-preview.png"));
     }}
-    static void Benchmark(){component.Config=component.Defaults();var d=Component.Map(component.Config,"displaySettings");d["borderEnabled"]=true;d["shadowEnabled"]=true;d["shadowBlur"]=3;component.Pressed[0]=true;using(var frame=new Bitmap(400,170))using(var g=Graphics.FromImage(frame)){var timer=Stopwatch.StartNew();component.Render(g,400,170);timer.Stop();double cold=timer.Elapsed.TotalMilliseconds;timer.Restart();for(int i=0;i<300;i++){g.Clear(Color.Transparent);component.Render(g,400,170);}timer.Stop();string report="Cold effect creation: "+cold.ToString("F2")+" ms\r\nCached full-display render: "+(timer.Elapsed.TotalMilliseconds/300).ToString("F3")+" ms/frame over 300 frames\r\nMeasurement is from this machine's test process; not a hardware-independent guarantee.\r\n";File.WriteAllText(Path.Combine(output,"render-performance.txt"),report);Console.WriteLine(report);}}
 }
 
 

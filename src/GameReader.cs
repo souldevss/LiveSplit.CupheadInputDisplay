@@ -9,6 +9,9 @@ namespace CupheadInputDisplay {
     // Reuses the installed autosplitter's version-aware signatures, but never its timer logic.
     public sealed partial class GameReader : IDisposable {
         object memory; Type type; Process process; int pid, size;
+        MethodInfo hookMethod,sceneMethod,saveMethod,pointerMethod;
+        PropertyInfo programProperty,versionProperty;FieldInfo levelField;
+        readonly byte[] scalarBuffer=new byte[8];
         int nameOffset, fieldsOffset, countOffset, parentOffset;
         readonly Dictionary<string,int> offsets = new Dictionary<string,int>();
         public string Status = "Waiting for Cuphead";
@@ -26,9 +29,10 @@ namespace CupheadInputDisplay {
             if(!ReadProcessMemory(handle,new IntPtr(address),data,count,out n) || n.ToInt64()!=count) throw new InvalidOperationException("Game memory unavailable");
             return data;
         }
-        long Ptr(long address) { var b=Read(address,size); return size==8?BitConverter.ToInt64(b,0):BitConverter.ToUInt32(b,0); }
-        int Int(long address) { return BitConverter.ToInt32(Read(address,4),0); }
-        bool Bool(long address) { var b=Read(address,1)[0]; if(b>1)throw new InvalidOperationException("Invalid game flag"); return b!=0; }
+        void Scalar(long address,int count){IntPtr read;if(address<0x10000||!ReadProcessMemory(handle,new IntPtr(address),scalarBuffer,count,out read)||read.ToInt64()!=count)throw new InvalidOperationException("Game memory unavailable");}
+        long Ptr(long address) {Scalar(address,size);return size==8?BitConverter.ToInt64(scalarBuffer,0):BitConverter.ToUInt32(scalarBuffer,0);}
+        int Int(long address) {Scalar(address,4);return BitConverter.ToInt32(scalarBuffer,0);}
+        bool Bool(long address) {Scalar(address,1);byte b=scalarBuffer[0];if(b>1)throw new InvalidOperationException("Invalid game flag");return b!=0;}
         string Text(long address) { var b=Read(address,128); int n=Array.IndexOf(b,(byte)0); return Encoding.UTF8.GetString(b,0,n<0?128:n); }
         long Class(long obj) { return Ptr(Ptr(obj)); }
         bool SelectProfile(long obj) {
@@ -69,27 +73,25 @@ namespace CupheadInputDisplay {
                 if(memory==null) {
                     string path=System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Components","LiveSplit.Cuphead.dll");
                     var asm=Assembly.LoadFrom(path); type=asm.GetType("LiveSplit.Cuphead.MemoryManager",true); memory=Activator.CreateInstance(type);
+                    hookMethod=type.GetMethod("HookProcess");programProperty=type.GetProperty("Program");versionProperty=type.GetProperty("Version");sceneMethod=type.GetMethod("SceneName",BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance);saveMethod=type.GetMethod("CurrentSave",BindingFlags.NonPublic|BindingFlags.Instance);levelField=type.GetField("Level",BindingFlags.NonPublic|BindingFlags.Static);pointerMethod=levelField==null?null:levelField.FieldType.GetMethod("GetPointer");
                 }
-                if(!(bool)type.GetMethod("HookProcess").Invoke(memory,null)) { Status="Waiting for Cuphead"; Release(); return false; }
-                process=(Process)type.GetProperty("Program").GetValue(memory,null);
+                if(!(bool)hookMethod.Invoke(memory,null)) { Status="Waiting for Cuphead"; Release(); return false; }
+                process=(Process)programProperty.GetValue(memory,null);
                 if(process.Id!=pid) {
                     Release(); pid=process.Id;handle=OpenProcess(0x1010,false,pid);
                     bool wow; IsWow64Process(process.Handle,out wow); size=Environment.Is64BitOperatingSystem&&!wow?8:4;
                     if(IntPtr.Size==4 && size==8) {Status="64-bit Cuphead requires 64-bit LiveSplit";return false;}
                 }
-                var sceneMethod=type.GetMethod("SceneName",BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance);
                 if(sceneMethod!=null)SceneName=sceneMethod.Invoke(memory,null) as string;
                 OnWinScreen=IsWinScene(SceneName);
                 if(OnWinScreen){Status="Cuphead connected · Win screen";return false;}
-                var saveMethod=type.GetMethod("CurrentSave",BindingFlags.NonPublic|BindingFlags.Instance);
                 if(saveMethod==null)throw new InvalidOperationException("Unsupported autosplitter memory API");
                 long save=((IntPtr)saveMethod.Invoke(memory,null)).ToInt64();
                 if(nameOffset==0 && !SelectProfile(save)) {Status="Waiting for valid Cuphead save / Mono metadata";return false;}
                 int mugField=Field(save,"isPlayer1Mugman"); bool mug=mugField>=0 && Bool(save+mugField);
                 character=(player==0?!mug:mug)?"Cuphead":"Mugman";
-                var levelField=type.GetField("Level",BindingFlags.NonPublic|BindingFlags.Static);
-                var pp=levelField.GetValue(null); long pointer=((IntPtr)pp.GetType().GetMethod("GetPointer").Invoke(pp,new object[]{process})).ToInt64();
-                string version=type.GetProperty("Version").GetValue(null,null).ToString();
+                var pp=levelField.GetValue(null); long pointer=((IntPtr)pointerMethod.Invoke(pp,new object[]{process})).ToInt64();
+                string version=versionProperty.GetValue(null,null).ToString();
                 long level=Ptr(pointer+(version=="SteamDLC"?0:-0x20));
                 if(level==0) {Status="Cuphead connected · outside level";return false;}
                 int mode=Field(level,"playerMode"); if(mode<0)throw new InvalidOperationException("Missing playerMode");
