@@ -1,6 +1,6 @@
 # LiveSplit.CupheadInputDisplay
 
-Native Cuphead input-display component for LiveSplit. **One DLL (682 KiB)**, embedded artwork, and standard Windows Forms settings. Based on [souldevss/CupheadInputDisplay](https://github.com/souldevss/CupheadInputDisplay).
+Native Cuphead input-display component for LiveSplit. **One DLL (686 KiB)**, embedded artwork, and standard Windows Forms settings. Based on [souldevss/CupheadInputDisplay](https://github.com/souldevss/CupheadInputDisplay).
 
 ## Install
 
@@ -49,7 +49,7 @@ The script uses the Windows .NET Framework C# compiler and your existing LiveSpl
 
 The native integration tests and rendering checks run locally on Windows. They create their own off-screen test window and write reports/previews under `artifacts/`.
 
-Current version: **1.4.0**. The prepared build passed **210 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
+Current version: **1.4.0**. The prepared build passed **225 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
 
 ## Performance
 
@@ -93,9 +93,11 @@ Enable **General → Star Skip on win screen (Z / A)**. Cuphead’s current scen
 
 Star Skip always uses **Z** and **controller A**, independently of Cuphead or fallback jump bindings. It uses one static win-screen star sprite, with no animation.
 
-The dedicated **Star Skip** tab has its own **Appearance**, **Layout** and **Effects** sections. Appearance provides separate inactive and pressed color pickers, color mode, color strength, brightness and inversion. Layout provides size and position. Effects provides independent borders and drop shadow. Star Skip and normal inputs never share these settings.
+The dedicated **Star Skip** tab has its own **Appearance**, **CPS**, **Layout** and **Effects** sections. Appearance provides separate inactive and pressed color pickers, color mode, color strength, brightness, inversion and scale on press. Layout provides size and position. Effects provides independent borders and drop shadow. Star Skip and normal inputs never share these settings.
 
 Its preview remains visible above the sections, including outside Cuphead or with the optional feature disabled. Use **Preview state → Inactive inputs / Pressed inputs** to inspect both colors. Previewing does not change the live display's automatic win-screen detection. The star defaults to its original gold artwork and stays small and centered.
+
+CPS shows new combined Star Skip input presses in the last second. Holding Z or controller A does not repeat the count; a key already held on entering the win screen is ignored until released. The count expires back to zero and resets when leaving the win screen. Under **Star Skip → CPS**, toggle it, pick a text color, choose its size, or place it to the right/below the star. CPS text stays steady when the star scales on press. Live settings previews can count test presses separately; forced pressed previews show a sample count without altering live CPS.
 
 ![Star Skip in settings](docs/star-settings-preview.png)
 
