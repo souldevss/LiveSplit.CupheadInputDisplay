@@ -77,6 +77,7 @@ namespace CupheadInputDisplay {
         void BuildGeneral(){
             var root=Page("General");root.Tag="Compact";root.Padding=new Padding(6);root.Name="GeneralContent";
             var display=GeneralGroup(root,"Display","GeneralDisplayGroup");Choice(display,"Player","player",new[]{"Player 1","Player 2"},true);var detached=Check(display,"Separate display window","liveSplit","separateWindow",false);
+            var starToggle=new CheckBox{Text="Star Skip on win screen (Z / A)",AutoSize=true,Name="ShowStarSkip"};Wide(display,starToggle);refreshers.Add(()=>starToggle.Checked=owner.StarEnabled);starToggle.CheckedChanged+=(s,e)=>{if(!refreshing){Component.Map(Component.Map(owner.Config,"elementSettings"),"star")["visible"]=starToggle.Checked;RefreshSettings();}};
             SizeFields(display,"Layout size","width","height",400,170,80,50,2000,1000);var inlineSize=FindChild(display,"width").Parent;var inlineCaption=display.GetControlFromPosition(0,display.GetRow(inlineSize));
             var window=GeneralGroup(root,"Window","WindowOptions");SizeFields(window,"Size","windowWidth","windowHeight",400,170,120,80,2000,1200);
             var top=Check(window,"Always on top","liveSplit","windowTopMost",false);var title=Check(window,"Title bar","liveSplit","windowTitleBar",true);var transparent=Check(window,"Transparent background","liveSplit","windowTransparent",false);
@@ -116,14 +117,14 @@ namespace CupheadInputDisplay {
         void BuildLayout(){var page=Page("Layout");
             Note(page,"Drag an element in the preview, or set its offsets below. The preview shows the character and mode detected in the game.");
             preview=new Preview(owner){Height=190,Name="ArtworkPreview"};Wide(page,preview);
-            element=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Name="SelectedElement"};element.Items.AddRange(new[]{"Lock","Swap weapon","Jump","Shoot","Dash","EX / Super","Directional pad"});Row(page,"Element",element);
+            element=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Name="SelectedElement"};element.Items.AddRange(new[]{"Lock","Swap weapon","Jump","Shoot","Dash","EX / Super","Directional pad","Star Skip (Z / A)"});Row(page,"Element",element);
             elementVisible=new CheckBox{Text="Visible",AutoSize=true,Name="ElementVisible"};Wide(page,elementVisible);
             elementSize=Numeric(30,250,0);elementSize.Name="ElementScale";Row(page,"Base size (%)",elementSize);
             elementX=Numeric(-10000,10000,0);elementX.Name="ElementX";Row(page,"Horizontal offset",elementX);
             elementY=Numeric(-10000,10000,0);elementY.Name="ElementY";Row(page,"Vertical offset",elementY);
             var reset=new Button{Text="Reset position",AutoSize=true,Name="ResetPosition"};Wide(page,reset);
             element.SelectedIndexChanged+=(s,e)=>{preview.Selected=element.SelectedIndex;RefreshElement();};
-            elementVisible.CheckedChanged+=(s,e)=>{if(!refreshing&&element.SelectedIndex>=0){ElementConfig()["visible"]=elementVisible.Checked;preview.Invalidate();}};
+            elementVisible.CheckedChanged+=(s,e)=>{if(!refreshing&&element.SelectedIndex>=0){ElementConfig()["visible"]=elementVisible.Checked;RefreshSettings();}};
             elementSize.ValueChanged+=(s,e)=>{if(!refreshing&&element.SelectedIndex>=0){ElementConfig()["scale"]=(double)elementSize.Value/100;preview.Invalidate();}};
             elementX.ValueChanged+=(s,e)=>{if(!refreshing&&element.SelectedIndex>=0){ElementConfig()["offsetX"]=(double)elementX.Value;preview.Invalidate();}};
             elementY.ValueChanged+=(s,e)=>{if(!refreshing&&element.SelectedIndex>=0){ElementConfig()["offsetY"]=(double)elementY.Value;preview.Invalidate();}};
@@ -152,21 +153,21 @@ namespace CupheadInputDisplay {
         void RefreshBindingLabels(){foreach(var kv in keyButtons)if(waitingKey!=kv.Key)kv.Value.Text=KeyLabel(Component.Text(Component.Map(owner.Config,"keybinds"),kv.Key,""));foreach(var kv in padButtons)if(waitingPad!=kv.Key)kv.Value.Text=PadLabel((int)Component.Number(Component.Map(owner.Config,"gamepadBinds"),kv.Key,0,0,127));}
         public void RefreshSettings(){if(IsDisposed)return;refreshing=true;foreach(var refresh in refreshers)refresh();RefreshElement();if(preview!=null){preview.Visible=true;preview.Invalidate();}refreshing=false;}
         void CancelCapture(){waitingKey=null;waitingPad=null;RefreshBindingLabels();}
-        void RefreshRuntime(){if(!Visible)return;status.Text=owner.Reader.Status.StartsWith("Cuphead connected")?owner.Character+" · "+(owner.Plane?"Plane":"Ground")+" · "+(owner.Reader.HasInputs?"Game inputs":"Fallback inputs"):"Waiting for Cuphead";tips.SetToolTip(status,owner.Reader.Status+Environment.NewLine+owner.Reader.InputStatus);if(preview!=null)preview.Invalidate();foreach(var picture in stylePreviews)picture.Invalidate();
+        void RefreshRuntime(){if(!Visible)return;status.Text=owner.Reader.OnWinScreen?"Win screen · Z / controller A":owner.Reader.Status.StartsWith("Cuphead connected")?owner.Character+" · "+(owner.Plane?"Plane":"Ground")+" · "+(owner.Reader.HasInputs?"Game inputs":"Fallback inputs"):"Waiting for Cuphead";tips.SetToolTip(status,owner.Reader.Status+Environment.NewLine+owner.Reader.InputStatus);if(preview!=null)preview.Invalidate();foreach(var picture in stylePreviews)picture.Invalidate();
             if(waitingPad!=null){if(!ContainsFocus){CancelCapture();return;}int pressed=Array.FindIndex(owner.PadButtons,b=>b);if(pressed<0){padReleased=true;padButtons[waitingPad].Text="Press a controller button…";}else if(padReleased){Component.Map(owner.Config,"gamepadBinds")[waitingPad]=pressed;waitingPad=null;RefreshBindingLabels();}}
         }
         protected override void Dispose(bool disposing){if(disposing&&!disposed){disposed=true;owner.Changed-=RefreshSettings;ticker.Stop();ticker.Dispose();tips.Dispose();if(backgroundThumbnail!=null){backgroundThumbnail.Dispose();backgroundThumbnail=null;}}base.Dispose(disposing);}
     }
     public sealed class Preview : Panel {
         readonly Component owner;bool dragging;Point start;double oldX,oldY;RectangleF frozen;
-        readonly bool[] previewInputs=new bool[10];
+        readonly bool[] previewInputs=new bool[11];
         public int Selected;public Action<int> SelectionChanged;public Action PositionChanged;public bool Editable=true;public int InputPreviewMode;
         public Preview(Component owner){this.owner=owner;DoubleBuffered=true;BorderStyle=BorderStyle.FixedSingle;BackColor=Color.FromArgb(32,32,32);Cursor=Cursors.Hand;}
         RectangleF ViewBounds{get{return dragging?frozen:owner.Bounds();}}
         float Fit(RectangleF b){return Math.Min((ClientSize.Width-12)/b.Width,(ClientSize.Height-12)/b.Height);}
         PointF ToLayout(Point p,RectangleF b){float f=Fit(b);return new PointF((p.X-(ClientSize.Width-b.Width*f)/2)/f+b.X,(p.Y-(ClientSize.Height-b.Height*f)/2)/f+b.Y);}
         protected override void OnPaint(PaintEventArgs e){base.OnPaint(e);var b=ViewBounds;if(InputPreviewMode==0)Array.Copy(owner.Pressed,previewInputs,previewInputs.Length);else for(int i=0;i<previewInputs.Length;i++)previewInputs[i]=InputPreviewMode==2;bool transparent=owner.Detached&&Component.Flag(owner.Options,"windowTransparent",false);if(transparent){using(var dark=new SolidBrush(Color.FromArgb(180,180,180)))using(var light=new SolidBrush(Color.FromArgb(225,225,225)))for(int y=0;y<ClientSize.Height;y+=12)for(int x=0;x<ClientSize.Width;x+=12)e.Graphics.FillRectangle(((x/12+y/12)%2==0)?light:dark,x,y,12,12);}owner.Render(e.Graphics,ClientSize.Width,ClientSize.Height,b,previewInputs,!transparent);if(!Editable)return;var rect=owner.ElementBounds(Selected);float f=Fit(b);if(f<=0)return;rect=new RectangleF((ClientSize.Width-b.Width*f)/2+(rect.X-b.X)*f,(ClientSize.Height-b.Height*f)/2+(rect.Y-b.Y)*f,rect.Width*f,rect.Height*f);using(var pen=new Pen(SystemColors.Highlight,1)){pen.DashStyle=System.Drawing.Drawing2D.DashStyle.Dash;e.Graphics.DrawRectangle(pen,rect.X,rect.Y,rect.Width,rect.Height);}}
-        protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);if(!Editable||e.Button!=MouseButtons.Left)return;var b=owner.Bounds();var point=ToLayout(e.Location,b);for(int i=Component.Elements.Length-1;i>=0;i--){var config=Component.Map(Component.Map(owner.Config,"elementSettings"),Component.Elements[i]);if(Component.Flag(config,"visible",true)&&owner.ElementBounds(i).Contains(point)){Selected=i;if(SelectionChanged!=null)SelectionChanged(i);oldX=Component.Number(config,"offsetX",0,-10000,10000);oldY=Component.Number(config,"offsetY",0,-10000,10000);start=e.Location;frozen=b;dragging=true;Capture=true;Invalidate();break;}}}
+        protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);if(!Editable||e.Button!=MouseButtons.Left)return;var b=owner.Bounds();var point=ToLayout(e.Location,b);for(int i=Component.Elements.Length-1;i>=0;i--){var config=Component.Map(Component.Map(owner.Config,"elementSettings"),Component.Elements[i]);if(owner.ElementVisible(i)&&owner.ElementBounds(i).Contains(point)){Selected=i;if(SelectionChanged!=null)SelectionChanged(i);oldX=Component.Number(config,"offsetX",0,-10000,10000);oldY=Component.Number(config,"offsetY",0,-10000,10000);start=e.Location;frozen=b;dragging=true;Capture=true;Invalidate();break;}}}
         protected override void OnMouseMove(MouseEventArgs e){base.OnMouseMove(e);if(!dragging)return;var config=Component.Map(Component.Map(owner.Config,"elementSettings"),Component.Elements[Selected]);float fit=Fit(frozen);if(fit<=0)return;config["offsetX"]=Math.Max(-10000,Math.Min(10000,oldX+(e.X-start.X)/fit));config["offsetY"]=Math.Max(-10000,Math.Min(10000,oldY+(e.Y-start.Y)/fit));if(PositionChanged!=null)PositionChanged();Invalidate();}
         protected override void OnMouseUp(MouseEventArgs e){base.OnMouseUp(e);dragging=false;Capture=false;Invalidate();}
     }

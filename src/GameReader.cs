@@ -12,6 +12,9 @@ namespace CupheadInputDisplay {
         int nameOffset, fieldsOffset, countOffset, parentOffset;
         readonly Dictionary<string,int> offsets = new Dictionary<string,int>();
         public string Status = "Waiting for Cuphead";
+        public string SceneName {get;private set;}
+        public bool OnWinScreen {get;private set;}
+        public static bool IsWinScene(string scene){return string.Equals(scene,"scene_win",StringComparison.Ordinal);}
         [DllImport("kernel32.dll", SetLastError=true)] static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
         [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
         [DllImport("kernel32.dll")] static extern bool IsWow64Process(IntPtr process, out bool wow);
@@ -61,7 +64,7 @@ namespace CupheadInputDisplay {
         }
         long Ref(long obj,string field) { int off=Field(obj,field); if(off<0)throw new InvalidOperationException("Missing field: "+field); return Ptr(obj+off); }
         public bool Poll(int player,out string character,out bool plane) {
-            character=null; plane=false;inputReady=false;
+            character=null; plane=false;inputReady=false;OnWinScreen=false;SceneName=null;
             try {
                 if(memory==null) {
                     string path=System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Components","LiveSplit.Cuphead.dll");
@@ -74,6 +77,10 @@ namespace CupheadInputDisplay {
                     bool wow; IsWow64Process(process.Handle,out wow); size=Environment.Is64BitOperatingSystem&&!wow?8:4;
                     if(IntPtr.Size==4 && size==8) {Status="64-bit Cuphead requires 64-bit LiveSplit";return false;}
                 }
+                var sceneMethod=type.GetMethod("SceneName",BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance);
+                if(sceneMethod!=null)SceneName=sceneMethod.Invoke(memory,null) as string;
+                OnWinScreen=IsWinScene(SceneName);
+                if(OnWinScreen){Status="Cuphead connected · Win screen";return false;}
                 var saveMethod=type.GetMethod("CurrentSave",BindingFlags.NonPublic|BindingFlags.Instance);
                 if(saveMethod==null)throw new InvalidOperationException("Unsupported autosplitter memory API");
                 long save=((IntPtr)saveMethod.Invoke(memory,null)).ToInt64();
@@ -93,9 +100,9 @@ namespace CupheadInputDisplay {
                 int chalice=Field(stats,"isChalice"); if(chalice>=0 && Bool(stats+chalice))character="Chalice";
                 try{SetupInputs(controller,player);}catch(Exception inputError){InputStatus="Fallback input: "+inputError.Message;}
                 Status="Cuphead connected · P"+(player+1)+" · "+character+" · "+(plane?"Plane":"Ground");return true;
-            } catch(Exception ex) { Status="Auto detection waiting: "+(ex.InnerException??ex).Message;return false; }
+            } catch(Exception ex) { OnWinScreen=false;SceneName=null;Status="Auto detection waiting: "+(ex.InnerException??ex).Message;return false; }
         }
-        void Release() {if(handle!=IntPtr.Zero)CloseHandle(handle);handle=IntPtr.Zero;pid=0;nameOffset=0;offsets.Clear();ResetInputs();}
+        void Release() {if(handle!=IntPtr.Zero)CloseHandle(handle);handle=IntPtr.Zero;pid=0;nameOffset=0;OnWinScreen=false;SceneName=null;offsets.Clear();ResetInputs();}
         public void Dispose(){Release(); if(memory!=null) {var m=type.GetMethod("Dispose");if(m!=null)m.Invoke(memory,null);} memory=null;}
     }
 }

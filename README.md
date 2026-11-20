@@ -49,11 +49,11 @@ The script uses the Windows .NET Framework C# compiler and your existing LiveSpl
 
 The native integration tests and rendering checks run locally on Windows. They create their own off-screen test window and write reports/previews under `artifacts/`.
 
-Current version: **1.3.3**. The prepared build passed **176 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
+Current version: **1.4.0**. The prepared build passed **225 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
 
 ## Performance
 
-One shared PNG is used for both input states; there are 30 embedded sprites and no separate pressed-image copies. Effect masks and display-size rasterizations are cached. The display avoids redundant invalidations and skips fallback device polling while in-game input is available, except during fallback binding configuration.
+One shared PNG is used for both input states; there are 41 embedded sprites (30 original inputs and 11 star animation frames) and no separate pressed-image copies. Effect masks and display-size rasterizations are cached. The display avoids redundant invalidations and skips fallback device polling while in-game input is available, except during fallback binding configuration or on the win screen while Star Skip is enabled.
 
 A local 300-frame test measured approximately **0.34 ms per cached display render** with borders and shadows enabled. Cold effect generation took about **288 ms**. These measurements are machine- and settings-dependent and do not measure the entire LiveSplit application.
 
@@ -87,3 +87,13 @@ Transparent mode hides the title bar and skips the solid/image background withou
 Click any swatch or **Choose…** to open LiveSplit's color picker. **Hold its eyedropper button, drag onto the screen color you want, then release.** Press OK to accept; Cancel restores the previous color. Swatches are fixed at 23×23 pixels, with the hex value shown separately.
 
 Background-image selection now uses the same compact thumbnail-button interaction and file dialog as LiveSplit's built-in settings. Images remain embedded in the component's layout settings.
+
+## Star Skip
+
+Enable **General → Star Skip on win screen (Z / A)**. Cuphead’s current scene is read through the installed autosplitter’s scene reader. In **scene_win**, the star replaces all normal inputs; leaving that scene restores the normal display. It is off by default.
+
+Star Skip always uses **Z** and **controller A**, independently of Cuphead or fallback jump bindings. Each new press plays all eight appearance frames, then resumes the three-frame main idle loop at approximately 12 fps. Quick taps finish the animation; holding a button does not repeatedly restart it. Layout → Star Skip provides visibility, position, scale and custom colors, with the existing effects applied to every frame. All artwork remains embedded in the single DLL.
+
+![Star appearance and idle frames](docs/star-skip-animation.png)
+
+Scene switching and inputs are covered by deterministic checks; this release’s win-screen transition has not been observed in a running game.

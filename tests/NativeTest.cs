@@ -15,12 +15,47 @@ class NativeTest {
     static void Invoke(object target,string method,object arg){target.GetType().GetMethod(method,BindingFlags.Instance|BindingFlags.NonPublic).Invoke(target,arg==null?null:new[]{arg});}
     static void Press(Button button,Keys key){typeof(Control).GetMethod("OnKeyDown",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(button,new object[]{new KeyEventArgs(key)});}
     [STAThread] static void Main(string[] args){output=args[0];AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{var p=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Components",new AssemblyName(e.Name).Name+".dll");return File.Exists(p)?Assembly.LoadFrom(p):null;};try{Run();}catch(Exception ex){Console.WriteLine("FAIL "+ex);Environment.ExitCode=1;}}
+    static void TestStar(){
+        Assert(!component.StarEnabled,"Star Skip is optional and off by default");
+        var animation=new StarAnimation();animation.Advance(false,0);
+        Assert(animation.Path.EndsWith("main_star_a.png"),"Star starts in main idle animation");
+        animation.Advance(false,83);Assert(animation.Path.EndsWith("main_star_b.png"),"Idle star advances without input");
+        animation.Advance(true,1000);
+        for(int i=0;i<8;i++){animation.Advance(true,1000+i*83);Assert(animation.Path.EndsWith("appear_"+(i+1).ToString("D4")+".png"),"Appearance frame "+(i+1)+" plays in order while held");using(var stream=AssetStore.Open(animation.Path)){Assert(stream!=null,"Appearance frame "+(i+1)+" embedded in single DLL");}}
+        animation.Advance(true,1664);Assert(animation.Path.EndsWith("main_star_a.png"),"Appearance finishes into idle without repeating while held");
+        animation.Advance(false,1700);animation.Advance(true,1701);Assert(animation.Path.EndsWith("appear_0001.png"),"Release and repress restarts appearance immediately");
+        animation.Advance(false,1784);Assert(animation.Path.EndsWith("appear_0002.png"),"Quick tap continues animation after release");
+        animation.Reset();animation.Advance(true,2000);Assert(animation.Path.EndsWith("appear_0001.png"),"Leaving and reentering win screen clears the held-input animation state");
+        for(int i=0;i<3;i++)using(var stream=AssetStore.Open("assets/Display/Star/Main/winscreen_main_star_"+(char)('a'+i)+".png")){Assert(stream!=null,"Main star idle frame embedded");}
+        Assert(Component.StarInput(true,false)&&Component.StarInput(false,true)&&!Component.StarInput(false,false),"Z and controller A independently activate fixed Star Skip input");
+        var star=Component.Map(Component.Map(component.Config,"elementSettings"),"star");star["visible"]=true;
+        string saved=component.Save();component.Load(saved);Assert(component.StarEnabled,"Optional Star visibility round-trips in saved layout");
+        Assert(GameReader.IsWinScene("scene_win")&&!GameReader.IsWinScene("scene_level_flower")&&!GameReader.IsWinScene("scene_cutscene_outro")&&!GameReader.IsWinScene(null),"Win-screen detection matches the actual Cuphead scene, excluding levels and ending cutscenes");
+        Assert(!component.ElementVisible(7)&&component.ElementVisible(0),"Enabled star stays hidden during normal play");
+        typeof(GameReader).GetProperty("OnWinScreen").SetValue(component.Reader,true,null);
+        Assert(component.StarOnly&&component.ElementVisible(7)&&Enumerable.Range(0,7).All(i=>!component.ElementVisible(i)),"Win screen replaces every normal input with only the star");
+        Assert(component.Bounds()==component.ElementBounds(7),"Win-screen layout fits only the star without invisible input spacing");
+        using(var shot=new Bitmap(500,190))using(var g=Graphics.FromImage(shot)){component.Render(g,500,190);shot.Save(Path.Combine(output,"star-skip-preview.png"));}
+        var liveAnimation=(StarAnimation)typeof(Component).GetField("star",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(component);
+        using(var strip=new Bitmap(990,90))using(var target=Graphics.FromImage(strip)){
+            var inputs=new bool[11];inputs[10]=true;
+            for(int i=0;i<11;i++){liveAnimation.Advance(true,i*83);using(var frame=new Bitmap(90,90))using(var g=Graphics.FromImage(frame)){component.Render(g,90,90,component.Bounds(),inputs,false);int pixels=0;for(int y=0;y<90;y++)for(int x=0;x<90;x++)if(frame.GetPixel(x,y).A>10)pixels++;Assert(pixels>50,"Animated star frame "+i+" renders visible alpha artwork");target.DrawImageUnscaled(frame,i*90,0);}}
+            strip.Save(Path.Combine(output,"star-skip-animation.png"));
+        }
+        typeof(GameReader).GetProperty("OnWinScreen").SetValue(component.Reader,false,null);
+        Assert(!component.StarOnly&&component.ElementVisible(0)&&!component.ElementVisible(7),"Leaving win screen restores normal inputs and hides star");
+        star=Component.Map(Component.Map(component.Config,"elementSettings"),"star");star["visible"]=false;
+        typeof(GameReader).GetProperty("OnWinScreen").SetValue(component.Reader,true,null);
+        Assert(!component.StarOnly&&component.ElementVisible(0),"Disabled Star Skip preserves normal display on win screen");
+        component.Reader.Dispose();Assert(!component.Reader.OnWinScreen,"Disconnected reader clears win-screen state");
+    }
     static void Run(){
         var asm=typeof(Component).Assembly;
         Assert(!asm.GetReferencedAssemblies().Any(a=>a.Name.IndexOf("WebView",StringComparison.OrdinalIgnoreCase)>=0),"Component has no WebView dependency");
         Assert(!asm.GetManifestResourceNames().Any(n=>n.EndsWith(".html")||n.EndsWith(".js")||n.EndsWith(".css")),"Single DLL embeds artwork only; no browser resources");
         Assert(new Factory().Category==LiveSplit.UI.Components.ComponentCategory.Other,"Component appears under Other");
         component=new Component(null);
+        TestStar();
         foreach(var character in new[]{"Cuphead","Mugman","Chalice"})foreach(var mode in new[]{"Normal","Plane"})foreach(var action in new[]{"Jump","Shoot","Dash","EX"})using(var stream=AssetStore.Open("assets/Display/"+mode+"/"+character+"/"+action+".png")){Assert(stream!=null,character+" "+mode+" "+action+" embedded sprite");}
         component.Load("{\"liveSplit\":{\"autoCharacter\":false,\"autoPlane\":false,\"character\":\"Mugman\",\"greenScreen\":true,\"height\":210},\"elementSettings\":{\"shoot\":{\"offsetX\":-300,\"scale\":2.5},\"lock\":{\"visible\":false}},\"keybinds\":{\"jump\":\"Space\"}}");
         Assert(!component.Options.ContainsKey("autoCharacter")&&!component.Options.ContainsKey("autoPlane")&&!component.Options.ContainsKey("character"),"Imported manual switches cannot disable automatic character or plane detection");
@@ -35,6 +70,9 @@ class NativeTest {
         Assert(component.ContextMenuControls==null&&component.GetType().GetMethod("OpenEditor")==null,"Settings are hosted exclusively in LiveSplit Layout Settings");
         form.Shown+=(s,e)=>{try{
             var tabs=editor.Controls.OfType<TabControl>().Single();Assert(tabs.TabPages.Count==5,"Five native settings tabs are present");
+            var starToggle=(CheckBox)Find(editor,"ShowStarSkip");starToggle.Checked=true;Assert(component.StarEnabled,"General toggle enables optional Star Skip");
+            var selector=(ComboBox)Find(editor,"SelectedElement");selector.SelectedIndex=7;Assert(((CheckBox)Find(editor,"ElementVisible")).Checked,"Layout exposes Star Skip visibility and placement");
+            ((CheckBox)Find(editor,"ElementVisible")).Checked=false;editor.RefreshSettings();Assert(!starToggle.Checked&&!component.StarEnabled,"Layout visibility synchronizes with General toggle");selector.SelectedIndex=0;
             TestLiveSplitColorPicker();
             TestSeparateWindow();
             form.PerformLayout();var general=tabs.TabPages[0];Assert(!general.VerticalScroll.Visible&&!general.HorizontalScroll.Visible,"Compact inline General page fits without scrolling at 480 by 560");
@@ -144,10 +182,10 @@ class NativeTest {
     }
     static void TestPreview(){
         var preview=(Preview)Find(editor,"StylePreview_Appearance");preview.Size=new Size(420,150);
-        var actual=new bool[10];actual[0]=true;actual[3]=true;actual[6]=true;Array.Copy(actual,component.Pressed,10);
+        var actual=new bool[component.Pressed.Length];actual[0]=true;actual[3]=true;actual[6]=true;Array.Copy(actual,component.Pressed,actual.Length);
         var d=Component.Map(component.Config,"displaySettings");d["tintMode"]="Solid";d["idleColor"]="#FFFF3000";d["pressedColor"]="#FF00CCFF";d["pressedTintAmount"]=65;
         for(int mode=0;mode<3;mode++){
-            preview.InputPreviewMode=mode;bool[] expected=(bool[])actual.Clone();if(mode>0)for(int i=0;i<10;i++)expected[i]=mode==2;
+            preview.InputPreviewMode=mode;bool[] expected=(bool[])actual.Clone();if(mode>0)for(int i=0;i<expected.Length;i++)expected[i]=mode==2;
             using(var sample=new Bitmap(preview.ClientSize.Width,preview.ClientSize.Height))using(var display=new Bitmap(sample.Width,sample.Height))using(var a=Graphics.FromImage(sample))using(var b=Graphics.FromImage(display)){
                 Invoke(preview,"OnPaint",new PaintEventArgs(a,new Rectangle(Point.Empty,sample.Size)));component.Render(b,display.Width,display.Height,component.Bounds(),expected);
                 bool equal=true;for(int y=0;y<sample.Height&&equal;y++)for(int x=0;x<sample.Width;x++)if(sample.GetPixel(x,y).ToArgb()!=display.GetPixel(x,y).ToArgb()){equal=false;break;}
