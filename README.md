@@ -1,6 +1,6 @@
 # LiveSplit.CupheadInputDisplay
 
-Native Cuphead input-display component for LiveSplit. **One DLL (686 KiB)**, embedded artwork, and standard Windows Forms settings. Based on [souldevss/CupheadInputDisplay](https://github.com/souldevss/CupheadInputDisplay).
+Native Cuphead input-display component for LiveSplit. **One DLL (690 KiB)**, embedded artwork, and standard Windows Forms settings. Based on [souldevss/CupheadInputDisplay](https://github.com/souldevss/CupheadInputDisplay).
 
 ## Install
 
@@ -49,7 +49,7 @@ The script uses the Windows .NET Framework C# compiler and your existing LiveSpl
 
 The native integration tests and rendering checks run locally on Windows. They create their own off-screen test window and write reports/previews under `artifacts/`.
 
-Current version: **1.4.0**. The prepared build passed **225 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
+Current version: **1.4.0**. The prepared build passed **236 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
 
 ## Performance
 
@@ -97,7 +97,9 @@ The dedicated **Star Skip** tab has its own **Appearance**, **CPS**, **Layout** 
 
 Its preview remains visible above the sections, including outside Cuphead or with the optional feature disabled. Use **Preview state → Inactive inputs / Pressed inputs** to inspect both colors. Previewing does not change the live display's automatic win-screen detection. The star defaults to its original gold artwork and stays small and centered.
 
-CPS shows new combined Star Skip input presses in the last second. Holding Z or controller A does not repeat the count; a key already held on entering the win screen is ignored until released. The count expires back to zero and resets when leaving the win screen. Under **Star Skip → CPS**, toggle it, pick a text color, choose its size, or place it to the right/below the star. CPS text stays steady when the star scales on press. Live settings previews can count test presses separately; forced pressed previews show a sample count without altering live CPS.
+**Star Skip → CPS** provides native font selection (family, style and size), a color picker, 0–2 decimals, anchor placement and fractional X/Y offsets. Drag the CPS text in the preview to position it independently of the star.
+
+The default **Tap rate** averages the intervals between recent presses (up to two seconds of history). It decreases during a pause and resets after one second without a tap. **Last-second count** remains available for the literal total in the past second. Z and controller A are tracked independently, so tapping one while holding the other counts correctly. Held keys never auto-repeat; keys already held on entry do not create phantom presses. The counter resets when leaving results. Settings previews use a separate counter, and the text stays steady during star press scaling.
 
 ![Star Skip in settings](docs/star-settings-preview.png)
 
