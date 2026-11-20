@@ -15,50 +15,27 @@ class NativeTest {
     static void Invoke(object target,string method,object arg){target.GetType().GetMethod(method,BindingFlags.Instance|BindingFlags.NonPublic).Invoke(target,arg==null?null:new[]{arg});}
     static void Press(Button button,Keys key){typeof(Control).GetMethod("OnKeyDown",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(button,new object[]{new KeyEventArgs(key)});}
     [STAThread] static void Main(string[] args){output=args[0];AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{var p=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Components",new AssemblyName(e.Name).Name+".dll");return File.Exists(p)?Assembly.LoadFrom(p):null;};try{Run();}catch(Exception ex){Console.WriteLine("FAIL "+ex);Environment.ExitCode=1;}}
+    static Bitmap StarSample(bool pressed){var image=new Bitmap(400,170);var inputs=new bool[11];inputs[10]=pressed;using(var g=Graphics.FromImage(image))component.Render(g,400,170,component.StarBounds(),inputs,false,true);return image;}
     static void TestStar(){
         Assert(!component.StarEnabled,"Star Skip is optional and off by default");
-        var animation=new StarAnimation();animation.Advance(false,0);
-        Assert(animation.Path.EndsWith("main_star_a.png"),"Star starts in main idle animation");
-        animation.Advance(false,83);Assert(animation.Path.EndsWith("main_star_b.png"),"Idle star advances without input");
-        animation.Advance(true,1000);
-        for(int i=0;i<8;i++){animation.Advance(true,1000+i*StarAnimation.FrameMilliseconds);Assert(animation.Path.EndsWith("appear_"+(i+1).ToString("D4")+".png"),"Appearance frame "+(i+1)+" plays in order while held");using(var stream=AssetStore.Open(animation.Path)){Assert(stream!=null,"Appearance frame "+(i+1)+" embedded in single DLL");}}
-        animation.Advance(true,1328);Assert(animation.Path.EndsWith("main_star_a.png"),"Appearance finishes into idle without repeating while held");
-        animation.Advance(false,1700);animation.Advance(true,1701);Assert(animation.Path.EndsWith("appear_0001.png"),"Release and repress restarts appearance immediately");
-        animation.Advance(false,1742);Assert(animation.Path.EndsWith("appear_0002.png"),"Quick tap continues animation after release");
-        animation.Reset();animation.Advance(true,2000);Assert(animation.Path.EndsWith("appear_0001.png"),"Leaving and reentering win screen clears the held-input animation state");
-        for(int i=0;i<3;i++)using(var stream=AssetStore.Open("assets/Display/Star/Main/winscreen_main_star_"+(char)('a'+i)+".png")){Assert(stream!=null,"Main star idle frame embedded");}
-        Assert(Component.StarInput(true,false)&&Component.StarInput(false,true)&&!Component.StarInput(false,false),"Z and controller A independently activate fixed Star Skip input");
+        Assert(typeof(Component).Assembly.GetType("CupheadInputDisplay.StarAnimation")==null,"Star animation code has been removed");
+        Assert(typeof(Component).Assembly.GetManifestResourceNames().Count(n=>n.Contains("/Star/"))==1,"Only one static star sprite is embedded");
+        Assert(GameReader.IsWinScene("scene_win")&&!GameReader.IsWinScene("scene_level_flower")&&!GameReader.IsWinScene(null),"Win-screen detection excludes normal levels");
+        Assert(Component.StarInput(true,false)&&Component.StarInput(false,true)&&!Component.StarInput(false,false),"Fixed Z and controller A activate Star Skip");
         var star=Component.Map(Component.Map(component.Config,"elementSettings"),"star");star["visible"]=true;
-        string saved=component.Save();component.Load(saved);Assert(component.StarEnabled,"Optional Star visibility round-trips in saved layout");
-        Assert(GameReader.IsWinScene("scene_win")&&!GameReader.IsWinScene("scene_level_flower")&&!GameReader.IsWinScene("scene_cutscene_outro")&&!GameReader.IsWinScene(null),"Win-screen detection matches the actual Cuphead scene, excluding levels and ending cutscenes");
-        Assert(!component.ElementVisible(7)&&component.ElementVisible(0),"Enabled star stays hidden during normal play");
+        Assert(!component.ElementVisible(7)&&component.ElementVisible(0),"Star stays hidden outside win screen");
         typeof(GameReader).GetProperty("OnWinScreen").SetValue(component.Reader,true,null);
-        Assert(component.StarOnly&&component.ElementVisible(7)&&Enumerable.Range(0,7).All(i=>!component.ElementVisible(i)),"Win screen replaces every normal input with only the star");
-        Assert(component.Bounds().Width==380&&component.ElementBounds(7).Width==50,"Star uses a small centered canvas instead of stretching to fill the display");
-        Assert(StarAnimation.FrameMilliseconds*8==328,"Appearance now completes in 328 ms, twice as fast as the original release");
-        var originalStyle=Component.Map(component.Config,"displaySettings");
-        using(var normal=new Bitmap(400,170))using(var altered=new Bitmap(400,170))using(var a=Graphics.FromImage(normal))using(var b=Graphics.FromImage(altered)){
-            component.Render(a,400,170,component.Bounds(),new bool[11],false);
-            component.Config["displaySettings"]=new System.Collections.Generic.Dictionary<string,object>{{"tintMode","Solid"},{"idleColor","#FFFF00FF"},{"pressedColor","#FF00FF00"},{"idleBrightness",0},{"pressedBrightness",0},{"idleOpacity",0},{"pressedOpacity",0},{"invertStates",true},{"borderEnabled",true},{"shadowEnabled",true},{"scaleOnPress",true},{"pressScale",150}};
-            var pressed=new bool[11];pressed[10]=true;component.Render(b,400,170,component.Bounds(),pressed,false);
-            bool same=true;int left=400,right=0;for(int y=0;y<170;y++)for(int x=0;x<400;x++){if(normal.GetPixel(x,y)!=altered.GetPixel(x,y))same=false;if(normal.GetPixel(x,y).A>10){left=Math.Min(left,x);right=Math.Max(right,x);}}
-            Assert(same,"Star artwork ignores all coloring, dimming, opacity, border, shadow and pressed-scale effects");
-            Assert(right>left&&right-left<40,"Idle star stays under 40 pixels wide in the default 400 by 170 display");
-        }
-        component.Config["displaySettings"]=originalStyle;
-        using(var shot=new Bitmap(500,190))using(var g=Graphics.FromImage(shot)){component.Render(g,500,190);shot.Save(Path.Combine(output,"star-skip-preview.png"));}
-        var liveAnimation=(StarAnimation)typeof(Component).GetField("star",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(component);
-        using(var strip=new Bitmap(990,90))using(var target=Graphics.FromImage(strip)){
-            var inputs=new bool[11];inputs[10]=true;
-            for(int i=0;i<11;i++){liveAnimation.Advance(true,i<8?i*StarAnimation.FrameMilliseconds:8*StarAnimation.FrameMilliseconds+(i-8)*StarAnimation.IdleMilliseconds);using(var frame=new Bitmap(90,90))using(var g=Graphics.FromImage(frame)){component.Render(g,90,90,component.ElementBounds(7),inputs,false);int pixels=0;for(int y=0;y<90;y++)for(int x=0;x<90;x++)if(frame.GetPixel(x,y).A>10)pixels++;Assert(pixels>50,"Animated star frame "+i+" renders visible alpha artwork");target.DrawImageUnscaled(frame,i*90,0);}}
-            strip.Save(Path.Combine(output,"star-skip-animation.png"));
-        }
-        typeof(GameReader).GetProperty("OnWinScreen").SetValue(component.Reader,false,null);
-        Assert(!component.StarOnly&&component.ElementVisible(0)&&!component.ElementVisible(7),"Leaving win screen restores normal inputs and hides star");
-        star=Component.Map(Component.Map(component.Config,"elementSettings"),"star");star["visible"]=false;
-        typeof(GameReader).GetProperty("OnWinScreen").SetValue(component.Reader,true,null);
-        Assert(!component.StarOnly&&component.ElementVisible(0),"Disabled Star Skip preserves normal display on win screen");
-        component.Reader.Dispose();Assert(!component.Reader.OnWinScreen,"Disconnected reader clears win-screen state");
+        Assert(component.StarOnly&&component.ElementVisible(7)&&Enumerable.Range(0,7).All(i=>!component.ElementVisible(i)),"Win screen shows only the star");
+        Assert(component.Bounds().Width==380&&component.ElementBounds(7).Width==50,"Star retains its small centered canvas");
+        using(var idle=StarSample(false))using(var pressed=StarSample(true)){Assert(idle.GetPixel(200,85)==pressed.GetPixel(200,85)&&idle.GetPixel(200,85).R>200,"Defaults retain original star colors in both states");idle.Save(Path.Combine(output,"star-skip-preview.png"));}
+        star["tintMode"]="Solid";star["idleColor"]="#FF0000FF";star["pressedColor"]="#FFFF0000";
+        using(var idle=StarSample(false))using(var pressed=StarSample(true)){Assert(idle.GetPixel(200,85).B>250&&idle.GetPixel(200,85).R<5,"Inactive star supports its own blue color");Assert(pressed.GetPixel(200,85).R>250&&pressed.GetPixel(200,85).B<5,"Pressed star supports its own red color");}
+        star["pressedTintAmount"]=0;using(var image=StarSample(true)){Assert(image.GetPixel(200,85).G>100,"Zero star color strength restores original gold artwork");}
+        star["pressedTintAmount"]=100;star["pressedBrightness"]=0.5;using(var image=StarSample(true)){Assert(image.GetPixel(200,85).R>120&&image.GetPixel(200,85).R<135,"Star brightness is independently adjustable");}
+        string saved=component.Save();component.Load(saved);star=Component.Map(Component.Map(component.Config,"elementSettings"),"star");Assert(component.StarEnabled&&Component.Text(star,"pressedColor","")=="#FFFF0000"&&Component.Number(star,"pressedBrightness",1,0,1)==0.5,"Star colors, brightness and visibility survive layout round-trip");
+        typeof(GameReader).GetProperty("OnWinScreen").SetValue(component.Reader,false,null);Assert(!component.StarOnly&&component.ElementVisible(0),"Leaving results restores normal inputs");
+        using(var preview=StarSample(true)){Assert(preview.GetPixel(200,85).A>200&&!component.Reader.OnWinScreen,"Star preview renders outside win screen without modifying game state");}
+        component.Config=component.Defaults();component.Reader.Dispose();
     }
     static void Run(){
         var asm=typeof(Component).Assembly;
@@ -83,6 +60,17 @@ class NativeTest {
             var tabs=editor.Controls.OfType<TabControl>().Single();Assert(tabs.TabPages.Count==5,"Five native settings tabs are present");
             var starToggle=(CheckBox)Find(editor,"ShowStarSkip");starToggle.Checked=true;Assert(component.StarEnabled,"General toggle enables optional Star Skip");
             var selector=(ComboBox)Find(editor,"SelectedElement");selector.SelectedIndex=7;Assert(((CheckBox)Find(editor,"ElementVisible")).Checked,"Layout exposes Star Skip visibility and placement");
+            tabs.SelectedIndex=3;
+            Assert(Find(editor,"StarStyleGroup").Visible&&Find(editor,"ElementIdleColor").Enabled&&Find(editor,"ElementPressedColor").Enabled,"Selecting Star Skip exposes enabled native color pickers and independent style controls");
+            ((ComboBox)Find(editor,"Star_tintMode")).SelectedItem="Solid";
+            var starSettings=Component.Map(Component.Map(component.Config,"elementSettings"),"star");starSettings["idleColor"]="#FF0000FF";starSettings["pressedColor"]="#FFFF0000";editor.RefreshSettings();
+            ((NumericUpDown)Find(editor,"Star_pressedTintAmount")).Value=75;Assert(Component.Number(starSettings,"pressedTintAmount",0,0,100)==75,"Star color strength changes through native settings");((NumericUpDown)Find(editor,"Star_pressedTintAmount")).Value=100;
+            var starPreview=(Preview)Find(editor,"ArtworkPreview");var state=(ComboBox)Find(editor,"PreviewMode_Layout");
+            for(int mode=1;mode<=2;mode++){state.SelectedIndex=mode;using(var image=new Bitmap(starPreview.Width,starPreview.Height))using(var g=Graphics.FromImage(image)){Invoke(starPreview,"OnPaint",new PaintEventArgs(g,new Rectangle(Point.Empty,image.Size)));var center=image.GetPixel(image.Width/2,image.Height/2);Assert(mode==1?center.B>250&&center.R<5:center.R>250&&center.B<5,"Settings shows the correct star color outside Cuphead in preview mode "+mode);}}
+            Assert(!component.Reader.OnWinScreen&&!component.StarOnly,"Settings preview never forces the real display into win-screen mode");
+            using(var shot=new Bitmap(form.ClientSize.Width,form.ClientSize.Height)){form.DrawToBitmap(shot,new Rectangle(Point.Empty,shot.Size));shot.Save(Path.Combine(output,"star-settings-preview.png"));}
+            state.SelectedIndex=0;tabs.SelectedIndex=0;
+            ((ComboBox)Find(editor,"PreviewContent_Appearance")).SelectedIndex=1;Assert(((Preview)Find(editor,"StylePreview_Appearance")).ShowStar,"Appearance has a Star Skip preview selector");((ComboBox)Find(editor,"PreviewContent_Appearance")).SelectedIndex=0;
             ((CheckBox)Find(editor,"ElementVisible")).Checked=false;editor.RefreshSettings();Assert(!starToggle.Checked&&!component.StarEnabled,"Layout visibility synchronizes with General toggle");selector.SelectedIndex=0;
             TestLiveSplitColorPicker();
             TestSeparateWindow();

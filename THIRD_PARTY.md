@@ -8,4 +8,4 @@
 Cuphead characters and artwork belong to their respective owners. No new license is asserted over upstream artwork. This repository does not include LiveSplit, SharpDX, Rewired or game binaries.
 - Native screen-eyedropper color dialog reused through LiveSplit.UI.SettingsHelper.ColorButtonClick; compact background-image interaction follows LiveSplit built-in settings: https://github.com/LiveSplit/LiveSplit/tree/master/src/LiveSplit.View/View
 
-- Win-screen star artwork: StudioMDHR, ripped by RavenclawNimbus, from https://www.spriters-resource.com/pc_computer/cupheaddontdealwiththedevil/asset/161855/. Eight appearance frames and three main idle frames are embedded unchanged. Original credit text: docs/STAR-CREDITS.txt. The smaller idle frames are centered on a common canvas at runtime to preserve animation alignment.
+- Win-screen star artwork: StudioMDHR, ripped by RavenclawNimbus, from https://www.spriters-resource.com/pc_computer/cupheaddontdealwiththedevil/asset/161855/. One original main star sprite is embedded unchanged. Original credit text: docs/STAR-CREDITS.txt. The sprite is centered on a 50-pixel canvas at runtime.

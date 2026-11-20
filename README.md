@@ -49,11 +49,11 @@ The script uses the Windows .NET Framework C# compiler and your existing LiveSpl
 
 The native integration tests and rendering checks run locally on Windows. They create their own off-screen test window and write reports/previews under `artifacts/`.
 
-Current version: **1.4.0**. The prepared build passed **228 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
+Current version: **1.4.0**. The prepared build passed **201 checks**, including pixel-for-pixel preview/display comparisons in live, inactive and pressed modes. Live reading was also checked against a running Cuphead game reporting Cuphead / Plane with neutral input states. Physical controller presses and Ms. Chalice were not observed in that live check.
 
 ## Performance
 
-One shared PNG is used for both input states; there are 41 embedded sprites (30 original inputs and 11 star animation frames) and no separate pressed-image copies. Effect masks and display-size rasterizations are cached. The display avoids redundant invalidations and skips fallback device polling while in-game input is available, except during fallback binding configuration or on the win screen while Star Skip is enabled.
+One shared PNG is used for both input states; there are 31 embedded sprites (30 original inputs and one static star) and no separate pressed-image copies. Effect masks and display-size rasterizations are cached. The display avoids redundant invalidations and skips fallback device polling while in-game input is available, except during fallback binding configuration on the win screen while Star Skip is enabled, or while previewing Star Skip in settings.
 
 A local 300-frame test measured approximately **0.34 ms per cached display render** with borders and shadows enabled. Cold effect generation took about **288 ms**. These measurements are machine- and settings-dependent and do not measure the entire LiveSplit application.
 
@@ -92,8 +92,12 @@ Background-image selection now uses the same compact thumbnail-button interactio
 
 Enable **General → Star Skip on win screen (Z / A)**. Cuphead’s current scene is read through the installed autosplitter’s scene reader. In **scene_win**, the star replaces all normal inputs; leaving that scene restores the normal display. It is off by default.
 
-Star Skip always uses **Z** and **controller A**, independently of Cuphead or fallback jump bindings. Each new press plays all eight appearance frames, at approximately 24 fps (0.33 seconds), then resumes the three-frame main idle loop at approximately 12 fps. Quick taps finish the animation; holding a button does not repeatedly restart it. Layout → Star Skip provides visibility, position and scale. The star is small and centered, and always uses its original artwork: it ignores recoloring, brightness, opacity, inversion, borders, shadows and pressed scaling. All artwork remains embedded in the single DLL.
+Star Skip always uses **Z** and **controller A**, independently of Cuphead or fallback jump bindings. It uses one static win-screen star sprite, with no animation.
 
-![Star appearance and idle frames](docs/star-skip-animation.png)
+In **Layout → Element → Star Skip**, choose separate inactive and pressed colors using LiveSplit's native color picker and eyedropper. The Star Skip colors section provides Original/Multiply/Colorize/Solid modes, independent color strength and brightness for each state. The star defaults to its original gold artwork and remains small and centered. Position and size remain adjustable. Star coloring is independent of the other inputs.
 
-Scene switching and inputs are covered by deterministic checks; this release’s win-screen transition has not been observed in a running game.
+Selecting Star Skip in Layout displays it immediately, even outside Cuphead or with the optional feature disabled. Use **Preview state → Inactive inputs / Pressed inputs** to inspect both colors. Appearance and Effects also offer a **Preview → Star Skip** selector. These previews do not change the live display's automatic win-screen detection.
+
+![Star Skip in settings](docs/star-settings-preview.png)
+
+Scene switching and inputs are covered by deterministic checks; this release's win-screen transition has not been observed in a running game.
